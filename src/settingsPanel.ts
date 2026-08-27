@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import type { Settings } from "./settings";
 import { applySettings, saveSettings } from "./settings";
 import { applyTranslations, setLanguage } from "./i18n";
@@ -19,6 +20,13 @@ export function initSettingsPanel(settings: Settings, callbacks: SettingsPanelCa
   const wordWrapCheck = document.querySelector<HTMLInputElement>("#setting-word-wrap")!;
   const autoReloadCheck = document.querySelector<HTMLInputElement>("#setting-auto-reload")!;
   const showHiddenCheck = document.querySelector<HTMLInputElement>("#setting-show-hidden")!;
+  const versionEl = document.querySelector<HTMLDivElement>("#settings-version")!;
+
+  void getVersion()
+    .then((version) => {
+      versionEl.textContent = `MD Viewer v${version}`;
+    })
+    .catch(() => {});
 
   function syncInputs(): void {
     languageSelect.value = settings.language;
