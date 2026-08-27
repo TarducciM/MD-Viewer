@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mdviewer-site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "site", "-p", "4710", "-c-1"],
+      "port": 4710
+    }
+  ]
+}
