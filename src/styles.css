@@ -307,6 +307,80 @@ body {
   flex: 1;
   overflow-y: auto;
   background: var(--bg-editor);
+  position: relative;
+}
+
+#edit-layout {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+#edit-layout[hidden] {
+  display: none;
+}
+
+#editor-pane {
+  width: 50%;
+  min-width: 200px;
+  max-width: 80%;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+#editor-pane .cm-editor {
+  height: 100%;
+}
+
+#edit-resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+#edit-resizer:hover {
+  background: var(--bg-selected);
+}
+
+#edit-preview {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  height: 100%;
+}
+
+#edit-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+#dirty-indicator {
+  -webkit-app-region: no-drag;
+  color: var(--link);
+  font-size: 9px;
+  margin-left: 6px;
+}
+
+#dirty-indicator[hidden] {
+  display: none;
+}
+
+.tb-btn.icon-only.active {
+  background: var(--bg-selected);
+  color: #fff;
+}
+
+.tb-btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
 }
 
 #empty-state {
