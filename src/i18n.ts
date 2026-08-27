@@ -47,11 +47,16 @@ const it: Dict = {
   "menu.save": "Salva (Ctrl+S)",
   "menu.closeTab": "Chiudi tab (Ctrl+W)",
   "menu.export": "Esporta",
+  "menu.recent": "Recenti",
   "menu.toggleSidebar": "Mostra/nascondi sidebar",
+  "menu.toggleOutline": "Mostra/nascondi indice",
   "menu.theme": "Tema",
   "menu.settings": "Impostazioni…",
   "menu.repo": "Repository su GitHub",
   "tab.closeTitle": "Chiudi tab",
+  "status.wordcount": "{words} parole · ~{minutes} min",
+  "outline.title": "INDICE",
+  "outline.empty": "Nessun titolo in questo file.",
 };
 
 const en: Dict = {
@@ -99,11 +104,16 @@ const en: Dict = {
   "menu.save": "Save (Ctrl+S)",
   "menu.closeTab": "Close tab (Ctrl+W)",
   "menu.export": "Export",
+  "menu.recent": "Recent",
   "menu.toggleSidebar": "Toggle sidebar",
+  "menu.toggleOutline": "Toggle outline",
   "menu.theme": "Theme",
   "menu.settings": "Settings…",
   "menu.repo": "Repository on GitHub",
   "tab.closeTitle": "Close tab",
+  "status.wordcount": "{words} words · ~{minutes} min read",
+  "outline.title": "OUTLINE",
+  "outline.empty": "No headings in this file.",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };

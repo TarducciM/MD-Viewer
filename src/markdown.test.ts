@@ -4,7 +4,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => `asset://localhost/${path}`,
 }));
 
-const { renderMarkdown, resolveRelativePath, splitHighlightedLines, escapeHtml } = await import("./markdown");
+const { renderMarkdown, resolveRelativePath, splitHighlightedLines, escapeHtml, extractOutline } =
+  await import("./markdown");
 
 describe("resolveRelativePath", () => {
   it("joins a simple relative path onto a base directory", () => {
@@ -63,9 +64,22 @@ describe("splitHighlightedLines", () => {
 describe("renderMarkdown", () => {
   it("renders headings and inline formatting", () => {
     const html = renderMarkdown("# Title\n\nSome **bold** and *italic* text.", "C:\\docs");
-    expect(html).toContain("<h1>Title</h1>");
+    expect(html).toContain('id="title"');
+    expect(html).toContain(">Title</h1>");
     expect(html).toContain("<strong>bold</strong>");
     expect(html).toContain("<em>italic</em>");
+  });
+
+  it("tags block-level elements with their source line", () => {
+    const html = renderMarkdown("# Title\n\nA paragraph.", "C:\\docs");
+    expect(html).toContain('data-line="0"');
+    expect(html).toContain('data-line="2"');
+  });
+
+  it("dedups repeated heading slugs like GitHub", () => {
+    const html = renderMarkdown("# Title\n\n# Title", "C:\\docs");
+    expect(html).toContain('id="title"');
+    expect(html).toContain('id="title-1"');
   });
 
   it("renders task list checkboxes", () => {
@@ -95,5 +109,25 @@ describe("renderMarkdown", () => {
   it("leaves absolute (http) image URLs untouched", () => {
     const html = renderMarkdown("![alt](https://example.com/pic.png)", "C:\\docs");
     expect(html).toContain('src="https://example.com/pic.png"');
+  });
+});
+
+describe("extractOutline", () => {
+  it("extracts headings in order with their level and slug", () => {
+    const outline = extractOutline("# Title\n\n## Sub one\n\nText\n\n## Sub two");
+    expect(outline).toEqual([
+      { level: 1, text: "Title", slug: "title" },
+      { level: 2, text: "Sub one", slug: "sub-one" },
+      { level: 2, text: "Sub two", slug: "sub-two" },
+    ]);
+  });
+
+  it("returns an empty list when there are no headings", () => {
+    expect(extractOutline("Just a paragraph.")).toEqual([]);
+  });
+
+  it("dedups slugs the same way renderMarkdown does", () => {
+    const outline = extractOutline("# Title\n\n# Title");
+    expect(outline.map((entry) => entry.slug)).toEqual(["title", "title-1"]);
   });
 });

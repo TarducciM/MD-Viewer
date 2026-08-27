@@ -290,6 +290,62 @@ body {
   background: var(--bg-selected);
 }
 
+#outline-panel {
+  width: 220px;
+  min-width: 160px;
+  max-width: 360px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#outline-header {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+#outline-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 3px;
+}
+
+.outline-item:hover {
+  background: var(--bg-hover);
+}
+
+.outline-empty {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* File tree */
 
 .tree-row {
@@ -907,6 +963,15 @@ body {
   display: none;
 }
 
+.status-chip-static {
+  cursor: default;
+}
+
+.status-chip-static:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 /* Dropdown menus (toolbar export menu, status bar pickers) */
 
 .dropdown {
@@ -1132,6 +1197,7 @@ body {
   #tab-bar,
   #sidebar,
   #resizer,
+  #outline-panel,
   #statusbar,
   #empty-state,
   #edit-layout {
@@ -1151,4 +1217,11 @@ body {
   #markdown-preview {
     max-width: none;
   }
+}
+
+/* Drag & drop */
+
+html.drag-over #app {
+  outline: 3px solid var(--bg-selected);
+  outline-offset: -3px;
 }

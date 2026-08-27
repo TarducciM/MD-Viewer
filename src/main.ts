@@ -1,6 +1,7 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   readFile,
+  readDir,
   writeFile,
   writeTextFile,
   exists,
@@ -9,7 +10,8 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { basename, dirname, sep } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { renderMarkdown } from "./markdown";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { renderMarkdown, extractOutline } from "./markdown";
 import { buildTree, findFirstFile } from "./fileTree";
 import { renderTree, setActiveFile } from "./treeView";
 import { loadSettings, saveSettings, applySettings, type Settings, type ThemeMode } from "./settings";
@@ -28,6 +30,8 @@ import {
 } from "./encoding";
 import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "./export";
 import { markdownToDocxBlob } from "./docxExport";
+import { countWords } from "./wordcount";
+import { getRecents, addRecent } from "./recents";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -56,6 +60,8 @@ interface Tab {
 const els = {
   menuFileBtn: document.querySelector<HTMLButtonElement>("#menu-file-btn")!,
   menuFile: document.querySelector<HTMLDivElement>("#menu-file")!,
+  menuRecentSection: document.querySelector<HTMLDivElement>("#menu-recent-section")!,
+  menuRecent: document.querySelector<HTMLDivElement>("#menu-recent")!,
   menuViewBtn: document.querySelector<HTMLButtonElement>("#menu-view-btn")!,
   menuView: document.querySelector<HTMLDivElement>("#menu-view")!,
   menuHelpBtn: document.querySelector<HTMLButtonElement>("#menu-help-btn")!,
@@ -83,10 +89,13 @@ const els = {
   settingsBtn: document.querySelector<HTMLButtonElement>("#settings-btn")!,
   exportBtn: document.querySelector<HTMLButtonElement>("#export-btn")!,
   exportMenu: document.querySelector<HTMLDivElement>("#export-menu")!,
+  statusWordcount: document.querySelector<HTMLSpanElement>("#status-wordcount")!,
   statusEncoding: document.querySelector<HTMLButtonElement>("#status-encoding")!,
   statusLineEnding: document.querySelector<HTMLButtonElement>("#status-line-ending")!,
   encodingMenu: document.querySelector<HTMLDivElement>("#encoding-menu")!,
   lineEndingMenu: document.querySelector<HTMLDivElement>("#line-ending-menu")!,
+  outlinePanel: document.querySelector<HTMLDivElement>("#outline-panel")!,
+  outlineList: document.querySelector<HTMLDivElement>("#outline-list")!,
 };
 
 const settings: Settings = loadSettings();
@@ -176,6 +185,23 @@ function renderTabBar(): void {
   }
 }
 
+function renderRecentMenu(): void {
+  const recents = getRecents();
+  els.menuRecentSection.hidden = recents.length === 0;
+  els.menuRecent.innerHTML = "";
+  for (const entry of recents) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = entry.label;
+    btn.title = entry.path;
+    btn.addEventListener("click", () => {
+      if (entry.isFolder) void loadFolder(entry.path);
+      else void openTabForFile(entry.path);
+    });
+    els.menuRecent.appendChild(btn);
+  }
+}
+
 // --- Per-tab state helpers -------------------------------------------------
 
 function markDirty(tab: Tab): void {
@@ -206,6 +232,8 @@ function showTabContent(tab: Tab): void {
       if (editPreviewTimer) clearTimeout(editPreviewTimer);
       editPreviewTimer = setTimeout(() => {
         els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
+        updateStatusChips();
+        updateOutline();
       }, EDIT_PREVIEW_DEBOUNCE_MS);
     });
     editHandle.focus();
@@ -229,11 +257,47 @@ function updateEditUiState(): void {
 
 function updateStatusChips(): void {
   const tab = activeTab();
+  els.statusWordcount.hidden = !tab;
   els.statusEncoding.hidden = !tab;
   els.statusLineEnding.hidden = !tab;
   if (tab) {
+    const sourceText = tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text;
+    const wc = countWords(sourceText);
+    els.statusWordcount.textContent = t("status.wordcount", {
+      words: String(wc.words),
+      minutes: String(wc.minutes),
+    });
     els.statusEncoding.textContent = ENCODING_LABELS[tab.encoding];
     els.statusLineEnding.textContent = tab.lineEnding;
+  }
+}
+
+function scrollToSlug(slug: string): void {
+  const tab = activeTab();
+  const container = tab?.isEditing ? els.editPreview : els.preview;
+  container.querySelector(`[id="${slug}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function updateOutline(): void {
+  const tab = activeTab();
+  const sourceText = tab ? (tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text) : "";
+  const entries = tab ? extractOutline(sourceText) : [];
+  els.outlineList.innerHTML = "";
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "outline-empty";
+    empty.textContent = t("outline.empty");
+    els.outlineList.appendChild(empty);
+    return;
+  }
+  for (const entry of entries) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "outline-item";
+    btn.textContent = entry.text;
+    btn.style.paddingLeft = `${12 + (entry.level - 1) * 12}px`;
+    btn.addEventListener("click", () => scrollToSlug(entry.slug));
+    els.outlineList.appendChild(btn);
   }
 }
 
@@ -266,6 +330,7 @@ async function reloadTab(tab: Tab): Promise<void> {
       els.preview.innerHTML = renderMarkdown(text, tab.baseDir);
       els.preview.scrollTop = scrollTop;
       updateStatusChips();
+      updateOutline();
     }
   } catch {
     // The file may have been removed or is mid-write; keep showing the last good render.
@@ -276,6 +341,7 @@ async function openTabForFile(filePath: string): Promise<void> {
   const existing = findTab(filePath);
   if (existing) {
     await activateTab(filePath);
+    addRecent(filePath, false);
     return;
   }
   try {
@@ -300,6 +366,7 @@ async function openTabForFile(filePath: string): Promise<void> {
     tabs.push(tab);
     await watchTab(tab);
     await activateTab(filePath);
+    addRecent(filePath, false);
   } catch (err) {
     els.statusLeft.textContent = t("status.openError", { error: String(err) });
   }
@@ -322,6 +389,7 @@ async function activateTab(filePath: string): Promise<void> {
   showTabContent(next);
   renderTabBar();
   updateStatusChips();
+  updateOutline();
   updateEditUiState();
 }
 
@@ -437,9 +505,40 @@ async function openFile(): Promise<void> {
   }
 }
 
+async function handleDroppedPaths(paths: string[]): Promise<void> {
+  for (const path of paths) {
+    let isDirectory = true;
+    try {
+      await readDir(path);
+    } catch {
+      isDirectory = false;
+    }
+    if (isDirectory) {
+      await loadFolder(path);
+    } else if (MD_FILTER[0].extensions.some((ext) => path.toLowerCase().endsWith(`.${ext}`))) {
+      await openTabForFile(path);
+    }
+  }
+}
+
+function setupDragDrop(): void {
+  void getCurrentWebview().onDragDropEvent((event) => {
+    const kind = event.payload.type;
+    if (kind === "drop") {
+      document.documentElement.classList.remove("drag-over");
+      void handleDroppedPaths(event.payload.paths);
+    } else if (kind === "enter" || kind === "over") {
+      document.documentElement.classList.add("drag-over");
+    } else {
+      document.documentElement.classList.remove("drag-over");
+    }
+  });
+}
+
 async function loadFolder(rootPath: string, initialFile?: string): Promise<void> {
   currentRoot = rootPath;
   localStorage.setItem(LAST_ROOT_KEY, rootPath);
+  addRecent(rootPath, true);
   const rootName = await basename(rootPath);
   els.sidebarTitle.textContent = rootName.toUpperCase();
   els.statusLeft.textContent = t("status.scanning");
@@ -473,6 +572,7 @@ function showEmptyState(): void {
   renderTabBar();
   updateEditUiState();
   updateStatusChips();
+  updateOutline();
 }
 
 async function restoreLastSession(): Promise<void> {
@@ -527,6 +627,7 @@ els.lineEndingMenu.addEventListener("click", (e) => {
   if (tab.isEditing) markDirty(tab);
 });
 
+els.menuFileBtn.addEventListener("click", renderRecentMenu);
 setupDropdown(els.menuFileBtn, els.menuFile);
 els.menuFile.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
@@ -568,6 +669,9 @@ els.menuView.addEventListener("click", (e) => {
   switch (actionBtn.dataset.action) {
     case "toggle-sidebar":
       els.body.classList.toggle("sidebar-hidden");
+      break;
+    case "toggle-outline":
+      els.outlinePanel.hidden = !els.outlinePanel.hidden;
       break;
     case "open-settings":
       els.settingsBtn.click();
@@ -617,4 +721,5 @@ initSettingsPanel(settings, {
 applyTranslations();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
+setupDragDrop();
 void restoreLastSession();
