@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — MD Viewer</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1220; --bg-elevated: #101d33; --line: #1f3252;
+    --accent: #5c92e8; --accent-soft: #8fb2ec;
+    --text: #eaf0fa; --text-dim: #93a3bd; --text-faint: #5c6c88;
+    --display: 'Manrope', system-ui, sans-serif;
+    --body: 'Public Sans', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent-soft); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 28px; }
+
+  header.site { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; max-width: 1120px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 8px; }
+  .brand .word { font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--text); }
+  header.site nav a { font-family: var(--mono); font-size: 13px; color: var(--text-dim); text-decoration: none; }
+  header.site nav a:hover { color: var(--text); }
+
+  main { padding: 40px 0 90px; }
+  .eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent-soft); margin-bottom: 10px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: 34px; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .updated { font-family: var(--mono); font-size: 13px; color: var(--text-faint); margin: 0 0 40px; }
+  h2 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 36px 0 10px; letter-spacing: -0.01em; }
+  p, li { font-size: 15px; color: var(--text-dim); }
+  strong { color: var(--text); }
+  code { font-family: var(--mono); font-size: 13px; background: rgba(92,146,232,0.12); color: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 8px; }
+
+  footer.site { border-top: 1px solid var(--line); padding: 28px 0; max-width: 1120px; margin: 0 auto; }
+  .wrap footer.site { max-width: none; padding: 28px 0; }
+  footer p { font-size: 13px; color: var(--text-faint); margin: 0; }
+  footer a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="site wrap">
+  <a class="brand" href="index.html">
+    <svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs><linearGradient id="bgg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C86E0"/><stop offset="1" stop-color="#17356B"/></linearGradient></defs>
+      <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bgg)"/>
+      <path d="M297 620 L297 320 L512 520 L727 320 L727 620" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M446 672 L512 738 L578 672" fill="none" stroke="#fff" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="word">MD Viewer</span>
+  </a>
+  <nav><a href="index.html">← Back</a></nav>
+</header>
+
+<div class="wrap">
+<main>
+  <div class="eyebrow"># privacy</div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: August 27, 2026</p>
+
+  <p>MD Viewer is a local, offline-first desktop app: no account, no cloud, and — as far as the app and this website are concerned — nothing about you is collected, stored on a server, or sold. This page explains exactly what does and doesn't happen, in plain terms.</p>
+
+  <h2>The desktop app</h2>
+  <p>MD Viewer runs entirely on your own device. It opens the files and folders you point it at, and nothing else.</p>
+  <ul>
+    <li><strong>No accounts, no cloud sync.</strong> There's nothing to log into.</li>
+    <li><strong>No telemetry, no analytics, no crash reporting.</strong> The app doesn't phone home — verified against its own source, not just claimed.</li>
+    <li><strong>Settings stay on your device.</strong> Theme, language, and editor preferences are saved locally (in the app's own storage), never transmitted anywhere.</li>
+    <li><strong>Remote content in your own files.</strong> If a Markdown file you open references a remote image or link, your device will request that content directly from wherever the file points — the same way a web browser would. That's a consequence of the file you opened, not something MD Viewer initiates on its own.</li>
+  </ul>
+
+  <h2>This website (mdviewer.mtsolutions.studio)</h2>
+  <p>The site you're reading this on is a single static page with no forms, no accounts, and no analytics of any kind. Two things it does load from outside your browser, both standard and both worth naming honestly:</p>
+  <ul>
+    <li><strong>GitHub's public release API</strong> — to show the current version and the right download link for your platform, the page asks <code>api.github.com</code> for the latest release. That request goes from your browser directly to GitHub; this site never sees it.</li>
+    <li><strong>Google Fonts</strong> — the page's typefaces (Manrope, Public Sans, JetBrains Mono) are loaded from Google's font servers, same as most websites that use Google Fonts. Your browser requests those font files directly from Google.</li>
+  </ul>
+  <p>Neither of those is something this site collects or has access to — they're requests your own browser makes to a third party, standard for a page that shows live release info and uses web fonts.</p>
+
+  <h2>Cookies</h2>
+  <p>Neither the app nor this website use cookies. See the <a href="cookie-policy.html">Cookie Policy</a> for the full, short answer.</p>
+
+  <h2>Changes to this page</h2>
+  <p>If MD Viewer ever starts doing something that isn't described here — an optional update checker, for instance — this page will be updated first, and the change will be described honestly, not buried.</p>
+
+  <h2>Questions</h2>
+  <p>Open an issue on <a href="https://github.com/TarducciM/MD-Viewer/issues" target="_blank" rel="noopener">GitHub</a> — that's the fastest way to reach the person who built and maintains this.</p>
+</main>
+</div>
+
+<div class="wrap">
+<footer class="site">
+  <p>MD Viewer — MIT licensed. <a href="index.html">Home</a> · <a href="terms.html">Terms</a> · <a href="cookie-policy.html">Cookie Policy</a></p>
+</footer>
+</div>
+
+</body>
+</html>
