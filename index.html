@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MD Viewer</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div id="app">
+      <header id="toolbar">
+        <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title">
+          <svg viewBox="0 0 16 16" class="icon"><path d="M1.5 3a.5.5 0 0 1 .5-.5h3.6l1.2 1.4H14a.5.5 0 0 1 .5.5v8.1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V3z" fill="currentColor"/></svg>
+          <span data-i18n="toolbar.openFolder">Apri cartella</span>
+        </button>
+        <button id="open-file-btn" class="tb-btn" data-i18n-title="toolbar.openFile.title">
+          <svg viewBox="0 0 16 16" class="icon"><path d="M4 1.5h5.5L12.5 4.5V14a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 4 1.5z" fill="none" stroke="currentColor"/><path d="M9.3 1.6V4.5h2.9" fill="none" stroke="currentColor"/></svg>
+          <span data-i18n="toolbar.openFile">Apri file</span>
+        </button>
+        <div id="breadcrumb"></div>
+        <button id="settings-btn" class="tb-btn icon-only" data-i18n-title="toolbar.settings.title">
+          <svg viewBox="0 0 16 16" class="icon"><path fill="currentColor" d="M6.4 1.5h3.2l.4 1.9c.4.15.8.35 1.15.6l1.85-.65 1.6 2.75-1.5 1.25c.05.4.05.8 0 1.2l1.5 1.25-1.6 2.75-1.85-.65c-.35.25-.75.45-1.15.6l-.4 1.9H6.4l-.4-1.9a4.7 4.7 0 0 1-1.15-.6l-1.85.65-1.6-2.75 1.5-1.25a4.6 4.6 0 0 1 0-1.2l-1.5-1.25 1.6-2.75 1.85.65c.35-.25.75-.45 1.15-.6l.4-1.9zM8 10.3a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/></svg>
+        </button>
+      </header>
+
+      <div id="body">
+        <aside id="sidebar">
+          <div id="sidebar-header"><span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span></div>
+          <div id="file-tree"></div>
+        </aside>
+        <div id="resizer"></div>
+        <main id="content">
+          <div id="empty-state">
+            <svg viewBox="0 0 48 48" class="empty-icon"><path d="M8 10h32v28H8z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 18h20M14 24h20M14 30h12" stroke="currentColor" stroke-width="2"/></svg>
+            <p class="empty-title" data-i18n="empty.title">Nessun file aperto</p>
+            <p class="empty-subtitle" data-i18n="empty.subtitle">Apri una cartella per esplorare i file Markdown, oppure apri direttamente un file.</p>
+            <div class="empty-actions">
+              <button id="empty-open-folder-btn" class="tb-btn primary" data-i18n="toolbar.openFolder">Apri cartella</button>
+              <button id="empty-open-file-btn" class="tb-btn" data-i18n="toolbar.openFile">Apri file</button>
+            </div>
+          </div>
+          <article id="markdown-preview" class="markdown-body" hidden></article>
+        </main>
+      </div>
+
+      <footer id="statusbar">
+        <span id="status-left"></span>
+      </footer>
+
+      <div id="settings-overlay" hidden>
+        <div id="settings-panel" role="dialog" aria-modal="true">
+          <div class="settings-header">
+            <h2 data-i18n="settings.title">Impostazioni</h2>
+            <button id="settings-close-btn" class="icon-btn" aria-label="Close">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="settings-body">
+            <label class="settings-row">
+              <span data-i18n="settings.language">Lingua</span>
+              <select id="setting-language">
+                <option value="it">Italiano</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label class="settings-row">
+              <span data-i18n="settings.theme">Tema</span>
+              <select id="setting-theme">
+                <option value="dark" data-i18n="settings.theme.dark">Scuro (Darcula)</option>
+                <option value="light" data-i18n="settings.theme.light">Chiaro (IntelliJ Light)</option>
+                <option value="system" data-i18n="settings.theme.system">Segui il sistema</option>
+              </select>
+            </label>
+            <label class="settings-row">
+              <span data-i18n="settings.fontSize">Dimensione testo anteprima</span>
+              <select id="setting-font-size">
+                <option value="small" data-i18n="settings.fontSize.small">Piccolo</option>
+                <option value="medium" data-i18n="settings.fontSize.medium">Medio</option>
+                <option value="large" data-i18n="settings.fontSize.large">Grande</option>
+              </select>
+            </label>
+            <label class="settings-row settings-row-check">
+              <span data-i18n="settings.lineNumbers">Numeri di riga nel codice</span>
+              <input type="checkbox" id="setting-line-numbers" />
+            </label>
+            <label class="settings-row settings-row-check">
+              <span data-i18n="settings.wordWrap">A capo automatico nel codice</span>
+              <input type="checkbox" id="setting-word-wrap" />
+            </label>
+            <label class="settings-row settings-row-check">
+              <span data-i18n="settings.autoReload">Aggiorna automaticamente se il file cambia</span>
+              <input type="checkbox" id="setting-auto-reload" />
+            </label>
+            <label class="settings-row settings-row-check">
+              <span data-i18n="settings.showHidden">Mostra cartelle nascoste (.git, node_modules, …)</span>
+              <input type="checkbox" id="setting-show-hidden" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
