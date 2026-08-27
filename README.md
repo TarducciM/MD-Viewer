@@ -10,7 +10,8 @@ Un visualizzatore di file Markdown per desktop, con un tema scuro e uno chiaro i
 
 ### Funzionalità
 
-- Sidebar con albero file: apri una cartella e naviga tra i `.md` che contiene
+- Sidebar con albero file (sempre la stessa) e più tab per i file aperti contemporaneamente, come in una IDE
+- Barra menu File / Visualizza / Aiuto, oltre alla toolbar con le icone
 - Rendering completo: titoli, liste, task-list, tabelle, blockquote, link, immagini locali, blocchi di codice con syntax highlighting
 - Numeri di riga e a capo automatico opzionali nei blocchi di codice
 - Aggiornamento automatico dell'anteprima quando il file viene modificato su disco
@@ -20,7 +21,7 @@ Un visualizzatore di file Markdown per desktop, con un tema scuro e uno chiaro i
 - Toolbar di formattazione nell'editor (grassetto, link, tabelle, liste, ecc.) e autocompletamento parole italiano/inglese
 - Esportazione in PDF (stampa), Word (.docx), testo semplice (con le tabelle convertite in griglie ASCII) e HTML
 - Codifica del file (UTF-8, UTF-8 BOM, UTF-16 LE/BE) e fine riga (LF/CRLF) rilevati automaticamente e modificabili dalla status bar
-- Scorciatoie: `Ctrl+O` per aprire un file, `Ctrl+Shift+O` per aprire una cartella
+- Scorciatoie: `Ctrl+O` per aprire un file, `Ctrl+Shift+O` per aprire una cartella, `Ctrl+W` per chiudere il tab
 
 ### Stack
 
@@ -71,7 +72,8 @@ A desktop Markdown viewer with a dark and a light theme inspired by code editors
 
 ### Features
 
-- File-tree sidebar: open a folder and browse the `.md` files inside it
+- File-tree sidebar (always the same one) with multiple tabs for simultaneously open files, IDE-style
+- File / View / Help menu bar, alongside the icon toolbar
 - Full rendering: headings, lists, task lists, tables, blockquotes, links, local images, syntax-highlighted code blocks
 - Optional line numbers and word-wrap in code blocks
 - Auto-reloads the preview when the file changes on disk
@@ -81,7 +83,7 @@ A desktop Markdown viewer with a dark and a light theme inspired by code editors
 - Formatting toolbar in the editor (bold, links, tables, lists, …) and Italian/English word autocomplete
 - Export to PDF (print), Word (.docx), plain text (tables rendered as ASCII grids), and HTML
 - File encoding (UTF-8, UTF-8 BOM, UTF-16 LE/BE) and line ending (LF/CRLF) auto-detected and changeable from the status bar
-- Shortcuts: `Ctrl+O` to open a file, `Ctrl+Shift+O` to open a folder
+- Shortcuts: `Ctrl+O` to open a file, `Ctrl+Shift+O` to open a folder, `Ctrl+W` to close the tab
 
 ### Stack
 

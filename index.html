@@ -10,6 +10,43 @@
 
   <body>
     <div id="app">
+      <header id="menubar">
+        <div class="dropdown">
+          <button type="button" class="menu-btn" id="menu-file-btn" data-i18n="menu.file">File</button>
+          <div id="menu-file" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="open-file" data-i18n="menu.openFile">Apri file… (Ctrl+O)</button>
+            <button type="button" data-action="open-folder" data-i18n="menu.openFolder">Apri cartella… (Ctrl+Shift+O)</button>
+            <div class="menu-sep"></div>
+            <button type="button" data-action="save" id="menu-save-item" data-i18n="menu.save">Salva (Ctrl+S)</button>
+            <button type="button" data-action="close-tab" id="menu-close-tab-item" data-i18n="menu.closeTab">Chiudi tab (Ctrl+W)</button>
+            <div class="menu-sep"></div>
+            <div class="menu-label" data-i18n="menu.export">Esporta</div>
+            <button type="button" data-export="pdf" id="menu-export-pdf" data-i18n="export.pdf">PDF (stampa)</button>
+            <button type="button" data-export="docx" id="menu-export-docx" data-i18n="export.docx">Word (.docx)</button>
+            <button type="button" data-export="txt" id="menu-export-txt" data-i18n="export.txt">Testo semplice (.txt)</button>
+            <button type="button" data-export="html" id="menu-export-html" data-i18n="export.html">HTML</button>
+          </div>
+        </div>
+        <div class="dropdown">
+          <button type="button" class="menu-btn" id="menu-view-btn" data-i18n="menu.view">Visualizza</button>
+          <div id="menu-view" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="toggle-sidebar" data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</button>
+            <div class="menu-sep"></div>
+            <div class="menu-label" data-i18n="menu.theme">Tema</div>
+            <button type="button" data-theme-choice="dark" data-i18n="settings.theme.dark">Scuro</button>
+            <button type="button" data-theme-choice="light" data-i18n="settings.theme.light">Chiaro</button>
+            <button type="button" data-theme-choice="system" data-i18n="settings.theme.system">Segui il sistema</button>
+            <div class="menu-sep"></div>
+            <button type="button" data-action="open-settings" data-i18n="menu.settings">Impostazioni…</button>
+          </div>
+        </div>
+        <div class="dropdown">
+          <button type="button" class="menu-btn" id="menu-help-btn" data-i18n="menu.help">Aiuto</button>
+          <div id="menu-help" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="open-repo" data-i18n="menu.repo">Repository su GitHub</button>
+          </div>
+        </div>
+      </header>
       <header id="toolbar">
         <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title">
           <svg viewBox="0 0 16 16" class="icon"><path d="M1.5 3a.5.5 0 0 1 .5-.5h3.6l1.2 1.4H14a.5.5 0 0 1 .5.5v8.1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V3z" fill="currentColor"/></svg>
@@ -46,7 +83,9 @@
           <div id="file-tree"></div>
         </aside>
         <div id="resizer"></div>
-        <main id="content">
+        <div id="content-column">
+          <div id="tab-bar"></div>
+          <main id="content">
           <div id="empty-state">
             <svg viewBox="0 0 48 48" class="empty-icon"><path d="M8 10h32v28H8z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 18h20M14 24h20M14 30h12" stroke="currentColor" stroke-width="2"/></svg>
             <p class="empty-title" data-i18n="empty.title">Nessun file aperto</p>
@@ -95,7 +134,8 @@
               <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
             </button>
           </div>
-        </main>
+          </main>
+        </div>
       </div>
 
       <footer id="statusbar">

@@ -29,7 +29,7 @@ Releases are **not** automatic on push. To cut one:
 
 ## Source layout (`src/`)
 
-- `main.ts` — app state and wiring; owns the currently-open file, edit-mode state, encoding/line-ending, and all event listeners.
+- `main.ts` — app state and wiring. One sidebar file tree tied to a single `currentRoot`; any number of independently-open file tabs (`Tab[]`) each with their own text/encoding/line-ending/dirty/edit state, switchable without losing unsaved edits. Only the *active* tab ever has a live `MarkdownEditorHandle`; switching tabs captures the outgoing tab's live buffer into `editBuffer` and destroys the CodeMirror instance, recreating it on return. Opening a folder never closes existing tabs; it only replaces the sidebar tree. The in-app File/View/Help menu bar (`#menubar`) is a second, separate row above the icon toolbar — both stay in sync since they call the same functions.
 - `markdown.ts` — markdown-it setup, Darcula/light-aware syntax highlighting, code block line numbering, relative image path resolution via `convertFileSrc`.
 - `editor.ts` — CodeMirror 6 setup for edit mode: markdown language support, word-completion source (document words + `wordlists.ts`), and the formatting-toolbar actions (bold/italic/link/table/etc.).
 - `fileTree.ts` / `treeView.ts` — recursive directory scan (data) and sidebar rendering (DOM), kept separate on purpose.
