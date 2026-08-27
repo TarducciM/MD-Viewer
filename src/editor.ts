@@ -33,7 +33,7 @@ const editorTheme = EditorView.theme({
     backgroundColor: "var(--bg-editor)",
   },
   ".cm-scroller": {
-    fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace",
+    fontFamily: "'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace",
     lineHeight: "1.6",
   },
   ".cm-content": {
