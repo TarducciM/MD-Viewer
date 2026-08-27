@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cookie Policy — MD Viewer</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1220; --bg-elevated: #101d33; --line: #1f3252;
+    --accent: #5c92e8; --accent-soft: #8fb2ec;
+    --text: #eaf0fa; --text-dim: #93a3bd; --text-faint: #5c6c88;
+    --display: 'Manrope', system-ui, sans-serif;
+    --body: 'Public Sans', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent-soft); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 28px; }
+
+  header.site { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; max-width: 1120px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 8px; }
+  .brand .word { font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--text); }
+  header.site nav a { font-family: var(--mono); font-size: 13px; color: var(--text-dim); text-decoration: none; }
+  header.site nav a:hover { color: var(--text); }
+
+  main { padding: 40px 0 90px; }
+  .eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent-soft); margin-bottom: 10px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: 34px; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .updated { font-family: var(--mono); font-size: 13px; color: var(--text-faint); margin: 0 0 40px; }
+  h2 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 36px 0 10px; letter-spacing: -0.01em; }
+  p, li { font-size: 15px; color: var(--text-dim); }
+  strong { color: var(--text); }
+  code { font-family: var(--mono); font-size: 13px; background: rgba(92,146,232,0.12); color: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+  .big-answer {
+    font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; margin: 28px 0;
+    background: var(--bg-elevated);
+  }
+  .big-answer span { display: block; font-family: var(--body); font-weight: 400; font-size: 14.5px; color: var(--text-dim); margin-top: 8px; }
+
+  footer.site { border-top: 1px solid var(--line); padding: 28px 0; }
+  footer p { font-size: 13px; color: var(--text-faint); margin: 0; }
+  footer a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="site wrap">
+  <a class="brand" href="index.html">
+    <svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs><linearGradient id="bgg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C86E0"/><stop offset="1" stop-color="#17356B"/></linearGradient></defs>
+      <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bgg)"/>
+      <path d="M297 620 L297 320 L512 520 L727 320 L727 620" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M446 672 L512 738 L578 672" fill="none" stroke="#fff" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="word">MD Viewer</span>
+  </a>
+  <nav><a href="index.html">← Back</a></nav>
+</header>
+
+<div class="wrap">
+<main>
+  <div class="eyebrow"># cookies</div>
+  <h1>Cookie Policy</h1>
+  <p class="updated">Last updated: August 27, 2026</p>
+
+  <div class="big-answer">
+    No cookies.
+    <span>Neither this website nor the MD Viewer app set any cookie — not technical, not analytics, not third-party. There's nothing here to consent to, so there's no banner.</span>
+  </div>
+
+  <h2>Why there's no banner</h2>
+  <p>A consent banner exists to ask permission for cookies that aren't strictly necessary for the site to work — analytics, advertising, tracking. Since this site sets none of those (or any cookie at all), showing a banner would suggest a kind of data processing that simply isn't happening.</p>
+
+  <h2>What the page does load from elsewhere</h2>
+  <p>Two requests leave your browser when you visit this site — neither is a cookie, but worth naming for full transparency (same disclosure as the <a href="privacy.html">Privacy Policy</a>):</p>
+  <ul>
+    <li><strong>GitHub's release API</strong>, to show the current download links.</li>
+    <li><strong>Google Fonts</strong>, to load the page's typefaces.</li>
+  </ul>
+
+  <h2>The desktop app</h2>
+  <p>MD Viewer saves your theme, language, and editor preferences locally on your own device — this isn't a cookie either (there's no browser involved once it's installed), and like everything else the app does, it never leaves your machine.</p>
+
+  <h2>Questions</h2>
+  <p>Open an issue on <a href="https://github.com/TarducciM/MD-Viewer/issues" target="_blank" rel="noopener">GitHub</a>.</p>
+</main>
+</div>
+
+<div class="wrap">
+<footer class="site">
+  <p>MD Viewer — MIT licensed. <a href="index.html">Home</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>
+</footer>
+</div>
+
+</body>
+</html>
