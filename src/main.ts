@@ -1,5 +1,12 @@
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile, exists, watchImmediate, type UnwatchFn } from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import {
+  readFile,
+  writeFile,
+  writeTextFile,
+  exists,
+  watchImmediate,
+  type UnwatchFn,
+} from "@tauri-apps/plugin-fs";
 import { basename, dirname, sep } from "@tauri-apps/api/path";
 import { renderMarkdown } from "./markdown";
 import { buildTree, findFirstFile } from "./fileTree";
@@ -8,12 +15,26 @@ import { loadSettings, applySettings, type Settings } from "./settings";
 import { setLanguage, applyTranslations, t } from "./i18n";
 import { initSettingsPanel } from "./settingsPanel";
 import { createMarkdownEditor, type MarkdownEditorHandle, type FormatAction } from "./editor";
+import {
+  detectEncoding,
+  decodeBytes,
+  encodeText,
+  detectLineEnding,
+  applyLineEnding,
+  ENCODING_LABELS,
+  type TextEncodingId,
+  type LineEnding,
+} from "./encoding";
+import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "./export";
+import { markdownToDocxBlob } from "./docxExport";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
 const MD_FILTER = [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] }];
 const RELOAD_DEBOUNCE_MS = 150;
 const EDIT_PREVIEW_DEBOUNCE_MS = 120;
+
+type ExportFormat = "pdf" | "docx" | "txt" | "html";
 
 const els = {
   openFolderBtn: document.querySelector<HTMLButtonElement>("#open-folder-btn")!,
@@ -34,6 +55,12 @@ const els = {
   editCloseBtn: document.querySelector<HTMLButtonElement>("#edit-close-btn")!,
   editorColumn: document.querySelector<HTMLDivElement>("#editor-column")!,
   editToolbar: document.querySelector<HTMLDivElement>("#edit-toolbar")!,
+  exportBtn: document.querySelector<HTMLButtonElement>("#export-btn")!,
+  exportMenu: document.querySelector<HTMLDivElement>("#export-menu")!,
+  statusEncoding: document.querySelector<HTMLButtonElement>("#status-encoding")!,
+  statusLineEnding: document.querySelector<HTMLButtonElement>("#status-line-ending")!,
+  encodingMenu: document.querySelector<HTMLDivElement>("#encoding-menu")!,
+  lineEndingMenu: document.querySelector<HTMLDivElement>("#line-ending-menu")!,
 };
 
 const settings: Settings = loadSettings();
@@ -44,6 +71,8 @@ let currentRoot: string | null = null;
 let currentFile: string | null = null;
 let currentText = "";
 let currentBaseDir = "";
+let currentEncoding: TextEncodingId = "utf-8";
+let currentLineEnding: LineEnding = "LF";
 let unwatchFile: UnwatchFn | null = null;
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 let ignoreNextExternalChange = false;
@@ -71,16 +100,44 @@ function setupResizer(handleEl: HTMLElement, targetEl: HTMLElement): void {
   });
 }
 
+const dropdownMenus: HTMLElement[] = [];
+function closeAllDropdowns(): void {
+  dropdownMenus.forEach((m) => (m.hidden = true));
+}
+function setupDropdown(triggerEl: HTMLButtonElement, menuEl: HTMLElement): void {
+  dropdownMenus.push(menuEl);
+  triggerEl.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (triggerEl.disabled) return;
+    const wasOpen = !menuEl.hidden;
+    closeAllDropdowns();
+    menuEl.hidden = wasOpen;
+  });
+}
+document.addEventListener("click", closeAllDropdowns);
+
 async function confirmDiscardIfDirty(): Promise<boolean> {
   if (!isDirty) return true;
   return window.confirm(t("edit.confirmDiscard"));
 }
 
 function updateEditUiState(): void {
-  els.editBtn.disabled = !currentFile;
+  const hasFile = !!currentFile;
+  els.editBtn.disabled = !hasFile;
   els.editBtn.classList.toggle("active", isEditing);
   els.editBtn.title = t(isEditing ? "toolbar.edit.exit.title" : "toolbar.edit.title");
   els.dirtyIndicator.hidden = !isDirty;
+  els.exportBtn.disabled = !hasFile;
+}
+
+function updateStatusChips(): void {
+  const hasFile = !!currentFile;
+  els.statusEncoding.hidden = !hasFile;
+  els.statusLineEnding.hidden = !hasFile;
+  if (hasFile) {
+    els.statusEncoding.textContent = ENCODING_LABELS[currentEncoding];
+    els.statusLineEnding.textContent = currentLineEnding;
+  }
 }
 
 function markDirty(): void {
@@ -133,13 +190,46 @@ async function toggleEditMode(): Promise<void> {
 
 async function saveCurrentFile(): Promise<void> {
   if (!isEditing || !currentFile || !editHandle) return;
-  const text = editHandle.getValue();
+  const text = applyLineEnding(editHandle.getValue(), currentLineEnding);
+  const bytes = encodeText(text, currentEncoding);
   ignoreNextExternalChange = true;
-  await writeTextFile(currentFile, text);
+  await writeFile(currentFile, bytes);
   currentText = text;
   els.preview.innerHTML = renderMarkdown(currentText, currentBaseDir);
   isDirty = false;
   updateEditUiState();
+}
+
+async function exportAs(format: ExportFormat): Promise<void> {
+  if (!currentFile) return;
+  if (format === "pdf") {
+    window.print();
+    return;
+  }
+
+  const sourceText = isEditing && editHandle ? editHandle.getValue() : currentText;
+  const base = (await basename(currentFile)).replace(/\.[^.]+$/, "");
+
+  try {
+    if (format === "txt") {
+      const path = await save({ defaultPath: `${base}.txt`, filters: [{ name: "Text", extensions: ["txt"] }] });
+      if (!path) return;
+      await writeTextFile(path, markdownToPlainText(sourceText));
+    } else if (format === "html") {
+      const path = await save({ defaultPath: `${base}.html`, filters: [{ name: "HTML", extensions: ["html"] }] });
+      if (!path) return;
+      const bodyHtml = renderMarkdown(sourceText, currentBaseDir);
+      await writeTextFile(path, markdownToStandaloneHtml(bodyHtml, base, EXPORT_HTML_CSS));
+    } else if (format === "docx") {
+      const path = await save({ defaultPath: `${base}.docx`, filters: [{ name: "Word", extensions: ["docx"] }] });
+      if (!path) return;
+      const blob = await markdownToDocxBlob(sourceText);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      await writeFile(path, bytes);
+    }
+  } catch (err) {
+    els.statusLeft.textContent = t("status.openError", { error: String(err) });
+  }
 }
 
 async function openFolder(): Promise<void> {
@@ -186,10 +276,14 @@ async function handleTreeSelect(filePath: string): Promise<void> {
 
 async function selectFile(filePath: string): Promise<void> {
   try {
-    const text = await readTextFile(filePath);
+    const bytes = await readFile(filePath);
+    const encoding = detectEncoding(bytes);
+    const text = decodeBytes(bytes, encoding);
     const baseDir = await dirname(filePath);
     currentText = text;
     currentBaseDir = baseDir;
+    currentEncoding = encoding;
+    currentLineEnding = detectLineEnding(text);
     els.preview.innerHTML = renderMarkdown(text, baseDir);
     els.preview.hidden = false;
     els.emptyState.hidden = true;
@@ -200,6 +294,7 @@ async function selectFile(filePath: string): Promise<void> {
     setActiveFile(filePath);
     els.preview.scrollTop = 0;
     updateEditUiState();
+    updateStatusChips();
     await watchCurrentFile();
   } catch (err) {
     els.statusLeft.textContent = t("status.openError", { error: String(err) });
@@ -209,11 +304,15 @@ async function selectFile(filePath: string): Promise<void> {
 async function reloadCurrentFile(): Promise<void> {
   if (!currentFile || isEditing) return;
   try {
-    const text = await readTextFile(currentFile);
+    const bytes = await readFile(currentFile);
+    currentEncoding = detectEncoding(bytes);
+    const text = decodeBytes(bytes, currentEncoding);
+    currentLineEnding = detectLineEnding(text);
     const scrollTop = els.preview.scrollTop;
     currentText = text;
     els.preview.innerHTML = renderMarkdown(text, currentBaseDir);
     els.preview.scrollTop = scrollTop;
+    updateStatusChips();
   } catch {
     // The file may have been removed or is mid-write; keep showing the last good render.
   }
@@ -247,6 +346,7 @@ function showEmptyState(): void {
   els.preview.hidden = true;
   els.breadcrumb.textContent = "";
   updateEditUiState();
+  updateStatusChips();
 }
 
 async function restoreLastSession(): Promise<void> {
@@ -270,6 +370,31 @@ els.editToolbar.addEventListener("click", (e) => {
   const button = (e.target as HTMLElement).closest<HTMLElement>("[data-format]");
   if (!button || !editHandle) return;
   editHandle.format(button.dataset.format as FormatAction);
+});
+
+setupDropdown(els.exportBtn, els.exportMenu);
+els.exportMenu.addEventListener("click", (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-export]");
+  if (!button) return;
+  void exportAs(button.dataset.export as ExportFormat);
+});
+
+setupDropdown(els.statusEncoding, els.encodingMenu);
+els.encodingMenu.addEventListener("click", (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-encoding]");
+  if (!button || !currentFile) return;
+  currentEncoding = button.dataset.encoding as TextEncodingId;
+  updateStatusChips();
+  if (isEditing) markDirty();
+});
+
+setupDropdown(els.statusLineEnding, els.lineEndingMenu);
+els.lineEndingMenu.addEventListener("click", (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-line-ending]");
+  if (!button || !currentFile) return;
+  currentLineEnding = button.dataset.lineEnding as LineEnding;
+  updateStatusChips();
+  if (isEditing) markDirty();
 });
 
 window.addEventListener("keydown", (e) => {
