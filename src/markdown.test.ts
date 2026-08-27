@@ -4,7 +4,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => `asset://localhost/${path}`,
 }));
 
-const { renderMarkdown, resolveRelativePath, splitHighlightedLines, escapeHtml } = await import("./markdown");
+const { renderMarkdown, resolveRelativePath, splitHighlightedLines, escapeHtml, extractOutline, mermaidSources } =
+  await import("./markdown");
 
 describe("resolveRelativePath", () => {
   it("joins a simple relative path onto a base directory", () => {
@@ -63,9 +64,22 @@ describe("splitHighlightedLines", () => {
 describe("renderMarkdown", () => {
   it("renders headings and inline formatting", () => {
     const html = renderMarkdown("# Title\n\nSome **bold** and *italic* text.", "C:\\docs");
-    expect(html).toContain("<h1>Title</h1>");
+    expect(html).toContain('id="title"');
+    expect(html).toContain(">Title</h1>");
     expect(html).toContain("<strong>bold</strong>");
     expect(html).toContain("<em>italic</em>");
+  });
+
+  it("tags block-level elements with their source line", () => {
+    const html = renderMarkdown("# Title\n\nA paragraph.", "C:\\docs");
+    expect(html).toContain('data-line="0"');
+    expect(html).toContain('data-line="2"');
+  });
+
+  it("dedups repeated heading slugs like GitHub", () => {
+    const html = renderMarkdown("# Title\n\n# Title", "C:\\docs");
+    expect(html).toContain('id="title"');
+    expect(html).toContain('id="title-1"');
   });
 
   it("renders task list checkboxes", () => {
@@ -95,5 +109,56 @@ describe("renderMarkdown", () => {
   it("leaves absolute (http) image URLs untouched", () => {
     const html = renderMarkdown("![alt](https://example.com/pic.png)", "C:\\docs");
     expect(html).toContain('src="https://example.com/pic.png"');
+  });
+});
+
+describe("mermaid code blocks", () => {
+  it("renders a placeholder instead of a highlighted code block", () => {
+    const html = renderMarkdown("```mermaid\ngraph TD;\nA-->B;\n```", "C:\\docs");
+    expect(html).toContain('class="mermaid-block"');
+    expect(html).not.toContain('<pre class="hljs">');
+    expect(html).toMatch(/data-mermaid-id="mermaid-[a-z0-9]+"/);
+  });
+
+  it("stores the raw diagram source in the side table, keyed by the placeholder id", () => {
+    const source = "graph TD;\nX-->Y;";
+    const html = renderMarkdown("```mermaid\n" + source + "\n```", "C:\\docs");
+    const id = html.match(/data-mermaid-id="(mermaid-[a-z0-9]+)"/)?.[1];
+    expect(id).toBeDefined();
+    expect(mermaidSources.get(id!)).toBe(source + "\n");
+  });
+
+  it("maps identical diagram source to the same id across renders", () => {
+    const source = "graph TD;\nSame-->Diagram;";
+    const html1 = renderMarkdown("```mermaid\n" + source + "\n```", "C:\\docs");
+    const html2 = renderMarkdown("```mermaid\n" + source + "\n```", "C:\\docs");
+    const id1 = html1.match(/data-mermaid-id="([^"]+)"/)?.[1];
+    const id2 = html2.match(/data-mermaid-id="([^"]+)"/)?.[1];
+    expect(id1).toBe(id2);
+  });
+
+  it("still highlights normal code blocks", () => {
+    const html = renderMarkdown("```js\nconst a = 1;\n```", "C:\\docs");
+    expect(html).toContain('<pre class="hljs">');
+  });
+});
+
+describe("extractOutline", () => {
+  it("extracts headings in order with their level and slug", () => {
+    const outline = extractOutline("# Title\n\n## Sub one\n\nText\n\n## Sub two");
+    expect(outline).toEqual([
+      { level: 1, text: "Title", slug: "title" },
+      { level: 2, text: "Sub one", slug: "sub-one" },
+      { level: 2, text: "Sub two", slug: "sub-two" },
+    ]);
+  });
+
+  it("returns an empty list when there are no headings", () => {
+    expect(extractOutline("Just a paragraph.")).toEqual([]);
+  });
+
+  it("dedups slugs the same way renderMarkdown does", () => {
+    const outline = extractOutline("# Title\n\n# Title");
+    expect(outline.map((entry) => entry.slug)).toEqual(["title", "title-1"]);
   });
 });

@@ -36,7 +36,29 @@ export function splitHighlightedLines(html: string): string[] {
   });
 }
 
+// Deterministic (not incremental) so the same diagram text always maps to the
+// same id across re-renders, avoiding stale async mermaid.render() results
+// from a previous render clobbering a same-numbered placeholder in a new one.
+function hashString(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+// Keyed by id, populated as a side effect of rendering; consumed by
+// renderMermaidBlocks() after the HTML is inserted into the DOM, since
+// mermaid.render() is async and can't run inside markdown-it's sync renderer.
+export const mermaidSources = new Map<string, string>();
+
 function renderCodeBlock(code: string, lang?: string): string {
+  if (lang === "mermaid") {
+    const id = `mermaid-${hashString(code)}`;
+    mermaidSources.set(id, code);
+    return `<div class="mermaid-block" data-mermaid-id="${id}"><pre class="mermaid-fallback">${escapeHtml(code)}</pre></div>`;
+  }
+
   const language = lang && hljs.getLanguage(lang) ? lang : undefined;
   let highlighted: string;
   try {
@@ -103,6 +125,67 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   return defaultImageRenderer(tokens, idx, options, env, self);
 };
 
+// GitHub-style slug: lowercase, strip punctuation, spaces to hyphens, dedup
+// duplicates with a numeric suffix (scoped to a single counts map per render).
+function slugify(text: string, counts: Map<string, number>): string {
+  const base = text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-");
+  const count = counts.get(base) ?? 0;
+  counts.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+const defaultHeadingOpen =
+  md.renderer.rules.heading_open ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+
+md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
+  const inlineToken = tokens[idx + 1];
+  const envObj = env as { slugCounts?: Map<string, number> };
+  if (!envObj.slugCounts) envObj.slugCounts = new Map();
+  const slug = slugify(inlineToken ? inlineToken.content : "", envObj.slugCounts);
+  tokens[idx].attrSet("id", slug);
+  return defaultHeadingOpen(tokens, idx, options, env, self);
+};
+
+// Tags block-level elements with their source line so the outline panel and
+// editor sync-scroll can map a preview element back to a line in the source.
+const defaultRenderToken = md.renderer.renderToken.bind(md.renderer);
+md.renderer.renderToken = (tokens, idx, options) => {
+  const token = tokens[idx];
+  if (token.nesting === 1 && token.block && token.map) {
+    token.attrSet("data-line", String(token.map[0]));
+  }
+  return defaultRenderToken(tokens, idx, options);
+};
+
 export function renderMarkdown(source: string, baseDir: string): string {
   return md.render(source, { baseDir });
+}
+
+export interface OutlineEntry {
+  level: number;
+  text: string;
+  slug: string;
+}
+
+export function extractOutline(source: string): OutlineEntry[] {
+  const tokens = md.parse(source, {});
+  const counts = new Map<string, number>();
+  const entries: OutlineEntry[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.type === "heading_open") {
+      const inline = tokens[i + 1];
+      entries.push({
+        level: Number(token.tag.slice(1)),
+        text: inline ? inline.content : "",
+        slug: slugify(inline ? inline.content : "", counts),
+      });
+    }
+  }
+  return entries;
 }

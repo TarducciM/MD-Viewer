@@ -19,6 +19,11 @@
             <div class="menu-sep"></div>
             <button type="button" data-action="save" id="menu-save-item" data-i18n="menu.save">Salva (Ctrl+S)</button>
             <button type="button" data-action="close-tab" id="menu-close-tab-item" data-i18n="menu.closeTab">Chiudi tab (Ctrl+W)</button>
+            <div id="menu-recent-section" hidden>
+              <div class="menu-sep"></div>
+              <div class="menu-label" data-i18n="menu.recent">Recenti</div>
+              <div id="menu-recent"></div>
+            </div>
             <div class="menu-sep"></div>
             <div class="menu-label" data-i18n="menu.export">Esporta</div>
             <button type="button" data-export="pdf" id="menu-export-pdf" data-i18n="export.pdf">PDF (stampa)</button>
@@ -31,6 +36,7 @@
           <button type="button" class="menu-btn" id="menu-view-btn" data-i18n="menu.view">Visualizza</button>
           <div id="menu-view" class="dropdown-menu dropdown-menu-left" hidden>
             <button type="button" data-action="toggle-sidebar" data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</button>
+            <button type="button" data-action="toggle-outline" data-i18n="menu.toggleOutline">Mostra/nascondi indice</button>
             <div class="menu-sep"></div>
             <div class="menu-label" data-i18n="menu.theme">Tema</div>
             <button type="button" data-theme-choice="dark" data-i18n="settings.theme.dark">Scuro</button>
@@ -43,6 +49,7 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-help-btn" data-i18n="menu.help">Aiuto</button>
           <div id="menu-help" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="check-update" data-i18n="menu.checkUpdate">Controlla aggiornamenti</button>
             <button type="button" data-action="open-repo" data-i18n="menu.repo">Repository su GitHub</button>
           </div>
         </div>
@@ -77,9 +84,26 @@
         </button>
       </header>
 
+      <div id="update-banner" hidden>
+        <span id="update-banner-text"></span>
+        <button type="button" id="update-banner-action" data-i18n="updater.updateNow">Aggiorna ora</button>
+        <button type="button" id="update-banner-dismiss" class="icon-btn" aria-label="Dismiss">
+          <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
       <div id="body">
         <aside id="sidebar">
-          <div id="sidebar-header"><span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span></div>
+          <div id="sidebar-header">
+            <span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span>
+            <button type="button" id="sidebar-search-toggle" class="icon-btn" data-i18n-title="sidebar.search.title" aria-label="Search">
+              <svg viewBox="0 0 16 16" class="icon"><circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor"/><path d="M10 10l4 4" stroke="currentColor" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div id="sidebar-search" hidden>
+            <input type="text" id="sidebar-search-input" data-i18n-placeholder="sidebar.search.placeholder" placeholder="Cerca nei file…" />
+            <div id="sidebar-search-results"></div>
+          </div>
           <div id="file-tree"></div>
         </aside>
         <div id="resizer"></div>
@@ -136,11 +160,16 @@
           </div>
           </main>
         </div>
+        <aside id="outline-panel" hidden>
+          <div id="outline-header"><span data-i18n="outline.title">INDICE</span></div>
+          <div id="outline-list"></div>
+        </aside>
       </div>
 
       <footer id="statusbar">
         <span id="status-left"></span>
         <div id="status-right">
+          <span id="status-wordcount" class="status-chip status-chip-static" hidden></span>
           <div class="dropdown">
             <button id="status-encoding" class="status-chip" data-i18n-title="status.encoding.title" hidden>UTF-8</button>
             <div id="encoding-menu" class="dropdown-menu dropdown-menu-up" hidden>

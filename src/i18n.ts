@@ -47,11 +47,28 @@ const it: Dict = {
   "menu.save": "Salva (Ctrl+S)",
   "menu.closeTab": "Chiudi tab (Ctrl+W)",
   "menu.export": "Esporta",
+  "menu.recent": "Recenti",
   "menu.toggleSidebar": "Mostra/nascondi sidebar",
+  "menu.toggleOutline": "Mostra/nascondi indice",
   "menu.theme": "Tema",
   "menu.settings": "Impostazioni…",
+  "menu.checkUpdate": "Controlla aggiornamenti",
   "menu.repo": "Repository su GitHub",
   "tab.closeTitle": "Chiudi tab",
+  "status.wordcount": "{words} parole · ~{minutes} min",
+  "outline.title": "INDICE",
+  "outline.empty": "Nessun titolo in questo file.",
+  "sidebar.search.title": "Cerca nei file",
+  "sidebar.search.placeholder": "Cerca nei file…",
+  "sidebar.search.noResults": "Nessun risultato.",
+  "sidebar.search.typeToSearch": "Digita per cercare nei file del progetto.",
+  "mermaid.error": "Errore nel diagramma Mermaid: {error}",
+  "updater.available": "È disponibile la versione {version}.",
+  "updater.updateNow": "Aggiorna ora",
+  "updater.upToDate": "Stai già usando l'ultima versione.",
+  "updater.downloading": "Download dell'aggiornamento in corso…",
+  "updater.downloadingProgress": "Download in corso… {percent}%",
+  "updater.error": "Aggiornamento non riuscito: {error}",
 };
 
 const en: Dict = {
@@ -99,11 +116,28 @@ const en: Dict = {
   "menu.save": "Save (Ctrl+S)",
   "menu.closeTab": "Close tab (Ctrl+W)",
   "menu.export": "Export",
+  "menu.recent": "Recent",
   "menu.toggleSidebar": "Toggle sidebar",
+  "menu.toggleOutline": "Toggle outline",
   "menu.theme": "Theme",
   "menu.settings": "Settings…",
+  "menu.checkUpdate": "Check for updates",
   "menu.repo": "Repository on GitHub",
   "tab.closeTitle": "Close tab",
+  "status.wordcount": "{words} words · ~{minutes} min read",
+  "outline.title": "OUTLINE",
+  "outline.empty": "No headings in this file.",
+  "sidebar.search.title": "Search files",
+  "sidebar.search.placeholder": "Search files…",
+  "sidebar.search.noResults": "No results.",
+  "sidebar.search.typeToSearch": "Type to search across project files.",
+  "mermaid.error": "Mermaid diagram error: {error}",
+  "updater.available": "Version {version} is available.",
+  "updater.updateNow": "Update now",
+  "updater.upToDate": "You're already on the latest version.",
+  "updater.downloading": "Downloading update…",
+  "updater.downloadingProgress": "Downloading… {percent}%",
+  "updater.error": "Update failed: {error}",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };
@@ -134,5 +168,8 @@ export function applyTranslations(root: ParentNode = document): void {
   });
   root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((el) => {
     el.title = t(el.dataset.i18nTitle!);
+  });
+  root.querySelectorAll<HTMLInputElement>("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder!);
   });
 }
