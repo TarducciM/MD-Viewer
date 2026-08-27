@@ -1,0 +1,32 @@
+<svg viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2d54"/>
+      <stop offset="1" stop-color="#0c1730"/>
+    </linearGradient>
+    <linearGradient id="iconBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4C86E0"/>
+      <stop offset="1" stop-color="#17356B"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect x="64" y="64" width="896" height="896" rx="200"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <svg x="450" y="130" width="380" height="380" viewBox="0 0 1024 1024">
+    <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#iconBg)"/>
+    <rect x="64" y="64" width="896" height="470" fill="url(#gloss)" clip-path="url(#clip)"/>
+    <path d="M297 620 L297 320 L512 520 L727 320 L727 620"
+          fill="none" stroke="#ffffff" stroke-width="74"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M446 672 L512 738 L578 672"
+          fill="none" stroke="#ffffff" stroke-width="62"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</svg>
