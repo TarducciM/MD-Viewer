@@ -8,10 +8,11 @@ import {
   type UnwatchFn,
 } from "@tauri-apps/plugin-fs";
 import { basename, dirname, sep } from "@tauri-apps/api/path";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMarkdown } from "./markdown";
 import { buildTree, findFirstFile } from "./fileTree";
 import { renderTree, setActiveFile } from "./treeView";
-import { loadSettings, applySettings, type Settings } from "./settings";
+import { loadSettings, saveSettings, applySettings, type Settings, type ThemeMode } from "./settings";
 import { setLanguage, applyTranslations, t } from "./i18n";
 import { initSettingsPanel } from "./settingsPanel";
 import { createMarkdownEditor, type MarkdownEditorHandle, type FormatAction } from "./editor";
@@ -33,16 +34,40 @@ const LAST_FILE_KEY = "mdviewer.lastFile";
 const MD_FILTER = [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] }];
 const RELOAD_DEBOUNCE_MS = 150;
 const EDIT_PREVIEW_DEBOUNCE_MS = 120;
+const REPO_URL = "https://github.com/TarducciM/MD-Viewer";
 
 type ExportFormat = "pdf" | "docx" | "txt" | "html";
 
+interface Tab {
+  filePath: string;
+  text: string;
+  baseDir: string;
+  encoding: TextEncodingId;
+  lineEnding: LineEnding;
+  isEditing: boolean;
+  isDirty: boolean;
+  editBuffer: string | null;
+  scrollTop: number;
+  unwatch: UnwatchFn | null;
+  reloadTimer: ReturnType<typeof setTimeout> | null;
+  ignoreNextExternalChange: boolean;
+}
+
 const els = {
+  menuFileBtn: document.querySelector<HTMLButtonElement>("#menu-file-btn")!,
+  menuFile: document.querySelector<HTMLDivElement>("#menu-file")!,
+  menuViewBtn: document.querySelector<HTMLButtonElement>("#menu-view-btn")!,
+  menuView: document.querySelector<HTMLDivElement>("#menu-view")!,
+  menuHelpBtn: document.querySelector<HTMLButtonElement>("#menu-help-btn")!,
+  menuHelp: document.querySelector<HTMLDivElement>("#menu-help")!,
   openFolderBtn: document.querySelector<HTMLButtonElement>("#open-folder-btn")!,
   openFileBtn: document.querySelector<HTMLButtonElement>("#open-file-btn")!,
   emptyOpenFolderBtn: document.querySelector<HTMLButtonElement>("#empty-open-folder-btn")!,
   emptyOpenFileBtn: document.querySelector<HTMLButtonElement>("#empty-open-file-btn")!,
+  body: document.querySelector<HTMLDivElement>("#body")!,
   fileTree: document.querySelector<HTMLDivElement>("#file-tree")!,
   sidebarTitle: document.querySelector<HTMLSpanElement>("#sidebar-title")!,
+  tabBar: document.querySelector<HTMLDivElement>("#tab-bar")!,
   emptyState: document.querySelector<HTMLDivElement>("#empty-state")!,
   preview: document.querySelector<HTMLElement>("#markdown-preview")!,
   breadcrumb: document.querySelector<HTMLDivElement>("#breadcrumb")!,
@@ -55,6 +80,7 @@ const els = {
   editCloseBtn: document.querySelector<HTMLButtonElement>("#edit-close-btn")!,
   editorColumn: document.querySelector<HTMLDivElement>("#editor-column")!,
   editToolbar: document.querySelector<HTMLDivElement>("#edit-toolbar")!,
+  settingsBtn: document.querySelector<HTMLButtonElement>("#settings-btn")!,
   exportBtn: document.querySelector<HTMLButtonElement>("#export-btn")!,
   exportMenu: document.querySelector<HTMLDivElement>("#export-menu")!,
   statusEncoding: document.querySelector<HTMLButtonElement>("#status-encoding")!,
@@ -67,20 +93,18 @@ const settings: Settings = loadSettings();
 setLanguage(settings.language);
 applySettings(settings);
 
-let currentRoot: string | null = null;
-let currentFile: string | null = null;
-let currentText = "";
-let currentBaseDir = "";
-let currentEncoding: TextEncodingId = "utf-8";
-let currentLineEnding: LineEnding = "LF";
-let unwatchFile: UnwatchFn | null = null;
-let reloadTimer: ReturnType<typeof setTimeout> | null = null;
-let ignoreNextExternalChange = false;
-
+const tabs: Tab[] = [];
+let activeTabPath: string | null = null;
 let editHandle: MarkdownEditorHandle | null = null;
-let isEditing = false;
-let isDirty = false;
 let editPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+let currentRoot: string | null = null;
+
+function findTab(path: string): Tab | undefined {
+  return tabs.find((tab) => tab.filePath === path);
+}
+function activeTab(): Tab | undefined {
+  return activeTabPath ? findTab(activeTabPath) : undefined;
+}
 
 function setupResizer(handleEl: HTMLElement, targetEl: HTMLElement): void {
   handleEl.addEventListener("mousedown", (downEvent) => {
@@ -116,99 +140,261 @@ function setupDropdown(triggerEl: HTMLButtonElement, menuEl: HTMLElement): void 
 }
 document.addEventListener("click", closeAllDropdowns);
 
-async function confirmDiscardIfDirty(): Promise<boolean> {
-  if (!isDirty) return true;
-  return window.confirm(t("edit.confirmDiscard"));
+// --- Tab bar rendering ---------------------------------------------------
+
+function renderTabBar(): void {
+  els.tabBar.innerHTML = "";
+  for (const tab of tabs) {
+    const row = document.createElement("div");
+    row.className = "tab" + (tab.filePath === activeTabPath ? " active" : "");
+    row.title = tab.filePath;
+
+    const label = document.createElement("span");
+    label.className = "tab-label";
+    label.textContent = tab.filePath.split(/[\\/]/).pop() ?? tab.filePath;
+    row.appendChild(label);
+
+    if (tab.isDirty) {
+      const dot = document.createElement("span");
+      dot.className = "tab-dirty-dot";
+      row.appendChild(dot);
+    }
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "tab-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = t("tab.closeTitle");
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void closeTab(tab.filePath);
+    });
+    row.appendChild(closeBtn);
+
+    row.addEventListener("click", () => void activateTab(tab.filePath));
+    els.tabBar.appendChild(row);
+  }
+}
+
+// --- Per-tab state helpers -------------------------------------------------
+
+function markDirty(tab: Tab): void {
+  if (tab.isDirty) return;
+  tab.isDirty = true;
+  renderTabBar();
+  updateEditUiState();
+}
+
+function captureTabViewState(tab: Tab): void {
+  if (tab.isEditing) {
+    if (editHandle) tab.editBuffer = editHandle.getValue();
+    tab.scrollTop = els.editPreview.scrollTop;
+  } else {
+    tab.scrollTop = els.preview.scrollTop;
+  }
+}
+
+function showTabContent(tab: Tab): void {
+  if (tab.isEditing) {
+    els.preview.hidden = true;
+    els.editLayout.hidden = false;
+    const initial = tab.editBuffer ?? tab.text;
+    els.editPreview.innerHTML = renderMarkdown(initial, tab.baseDir);
+    editHandle = createMarkdownEditor(els.editorPane, initial, (text) => {
+      tab.editBuffer = text;
+      markDirty(tab);
+      if (editPreviewTimer) clearTimeout(editPreviewTimer);
+      editPreviewTimer = setTimeout(() => {
+        els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
+      }, EDIT_PREVIEW_DEBOUNCE_MS);
+    });
+    editHandle.focus();
+    els.editPreview.scrollTop = tab.scrollTop;
+  } else {
+    els.editLayout.hidden = true;
+    els.preview.hidden = false;
+    els.preview.innerHTML = renderMarkdown(tab.text, tab.baseDir);
+    els.preview.scrollTop = tab.scrollTop;
+  }
 }
 
 function updateEditUiState(): void {
-  const hasFile = !!currentFile;
-  els.editBtn.disabled = !hasFile;
-  els.editBtn.classList.toggle("active", isEditing);
-  els.editBtn.title = t(isEditing ? "toolbar.edit.exit.title" : "toolbar.edit.title");
-  els.dirtyIndicator.hidden = !isDirty;
-  els.exportBtn.disabled = !hasFile;
+  const tab = activeTab();
+  els.editBtn.disabled = !tab;
+  els.editBtn.classList.toggle("active", !!tab?.isEditing);
+  els.editBtn.title = t(tab?.isEditing ? "toolbar.edit.exit.title" : "toolbar.edit.title");
+  els.dirtyIndicator.hidden = !tab?.isDirty;
+  els.exportBtn.disabled = !tab;
 }
 
 function updateStatusChips(): void {
-  const hasFile = !!currentFile;
-  els.statusEncoding.hidden = !hasFile;
-  els.statusLineEnding.hidden = !hasFile;
-  if (hasFile) {
-    els.statusEncoding.textContent = ENCODING_LABELS[currentEncoding];
-    els.statusLineEnding.textContent = currentLineEnding;
+  const tab = activeTab();
+  els.statusEncoding.hidden = !tab;
+  els.statusLineEnding.hidden = !tab;
+  if (tab) {
+    els.statusEncoding.textContent = ENCODING_LABELS[tab.encoding];
+    els.statusLineEnding.textContent = tab.lineEnding;
   }
 }
 
-function markDirty(): void {
-  if (isDirty) return;
-  isDirty = true;
-  updateEditUiState();
-}
+// --- Tab lifecycle -----------------------------------------------------
 
-async function enterEditMode(): Promise<void> {
-  if (!currentFile || isEditing) return;
-  unwatchFile?.();
-  unwatchFile = null;
-
-  isEditing = true;
-  els.preview.hidden = true;
-  els.editLayout.hidden = false;
-  els.editPreview.innerHTML = renderMarkdown(currentText, currentBaseDir);
-
-  editHandle = createMarkdownEditor(els.editorPane, currentText, (text) => {
-    markDirty();
-    if (editPreviewTimer) clearTimeout(editPreviewTimer);
-    editPreviewTimer = setTimeout(() => {
-      els.editPreview.innerHTML = renderMarkdown(text, currentBaseDir);
-    }, EDIT_PREVIEW_DEBOUNCE_MS);
+async function watchTab(tab: Tab): Promise<void> {
+  tab.unwatch?.();
+  tab.unwatch = null;
+  if (!settings.autoReload || tab.isEditing) return;
+  tab.unwatch = await watchImmediate(tab.filePath, () => {
+    if (tab.ignoreNextExternalChange) {
+      tab.ignoreNextExternalChange = false;
+      return;
+    }
+    if (tab.reloadTimer) clearTimeout(tab.reloadTimer);
+    tab.reloadTimer = setTimeout(() => void reloadTab(tab), RELOAD_DEBOUNCE_MS);
   });
-  editHandle.focus();
-  updateEditUiState();
 }
 
-function exitEditMode(): void {
+async function reloadTab(tab: Tab): Promise<void> {
+  if (tab.isEditing) return;
+  try {
+    const bytes = await readFile(tab.filePath);
+    tab.encoding = detectEncoding(bytes);
+    const text = decodeBytes(bytes, tab.encoding);
+    tab.lineEnding = detectLineEnding(text);
+    tab.text = text;
+    if (activeTabPath === tab.filePath) {
+      const scrollTop = els.preview.scrollTop;
+      els.preview.innerHTML = renderMarkdown(text, tab.baseDir);
+      els.preview.scrollTop = scrollTop;
+      updateStatusChips();
+    }
+  } catch {
+    // The file may have been removed or is mid-write; keep showing the last good render.
+  }
+}
+
+async function openTabForFile(filePath: string): Promise<void> {
+  const existing = findTab(filePath);
+  if (existing) {
+    await activateTab(filePath);
+    return;
+  }
+  try {
+    const bytes = await readFile(filePath);
+    const encoding = detectEncoding(bytes);
+    const text = decodeBytes(bytes, encoding);
+    const baseDir = await dirname(filePath);
+    const tab: Tab = {
+      filePath,
+      text,
+      baseDir,
+      encoding,
+      lineEnding: detectLineEnding(text),
+      isEditing: false,
+      isDirty: false,
+      editBuffer: null,
+      scrollTop: 0,
+      unwatch: null,
+      reloadTimer: null,
+      ignoreNextExternalChange: false,
+    };
+    tabs.push(tab);
+    await watchTab(tab);
+    await activateTab(filePath);
+  } catch (err) {
+    els.statusLeft.textContent = t("status.openError", { error: String(err) });
+  }
+}
+
+async function activateTab(filePath: string): Promise<void> {
+  const next = findTab(filePath);
+  if (!next || activeTabPath === filePath) return;
+
+  const prev = activeTab();
+  if (prev) captureTabViewState(prev);
   editHandle?.destroy();
   editHandle = null;
-  isEditing = false;
-  isDirty = false;
-  els.editLayout.hidden = true;
-  els.preview.hidden = false;
+
+  activeTabPath = filePath;
+  setActiveFile(filePath);
+  els.emptyState.hidden = true;
+  els.breadcrumb.textContent = await buildBreadcrumb(filePath);
+  localStorage.setItem(LAST_FILE_KEY, filePath);
+  showTabContent(next);
+  renderTabBar();
+  updateStatusChips();
   updateEditUiState();
-  void watchCurrentFile();
+}
+
+async function closeTab(filePath: string): Promise<void> {
+  const tab = findTab(filePath);
+  if (!tab) return;
+  if (tab.isDirty && !window.confirm(t("edit.confirmDiscard"))) return;
+
+  tab.unwatch?.();
+  const idx = tabs.indexOf(tab);
+  tabs.splice(idx, 1);
+
+  if (activeTabPath !== filePath) {
+    renderTabBar();
+    return;
+  }
+
+  editHandle?.destroy();
+  editHandle = null;
+  activeTabPath = null;
+  const nextTab = tabs[idx] ?? tabs[idx - 1];
+  if (nextTab) await activateTab(nextTab.filePath);
+  else showEmptyState();
 }
 
 async function toggleEditMode(): Promise<void> {
-  if (!currentFile) return;
-  if (isEditing) {
-    if (!(await confirmDiscardIfDirty())) return;
-    exitEditMode();
+  const tab = activeTab();
+  if (!tab) return;
+  if (tab.isEditing) {
+    if (tab.isDirty && !window.confirm(t("edit.confirmDiscard"))) return;
+    tab.isEditing = false;
+    tab.isDirty = false;
+    tab.editBuffer = null;
+    tab.ignoreNextExternalChange = false;
+    editHandle?.destroy();
+    editHandle = null;
+    showTabContent(tab);
+    await watchTab(tab);
   } else {
-    await enterEditMode();
+    tab.isEditing = true;
+    tab.editBuffer = tab.editBuffer ?? tab.text;
+    tab.unwatch?.();
+    tab.unwatch = null;
+    showTabContent(tab);
   }
+  renderTabBar();
+  updateEditUiState();
 }
 
-async function saveCurrentFile(): Promise<void> {
-  if (!isEditing || !currentFile || !editHandle) return;
-  const text = applyLineEnding(editHandle.getValue(), currentLineEnding);
-  const bytes = encodeText(text, currentEncoding);
-  ignoreNextExternalChange = true;
-  await writeFile(currentFile, bytes);
-  currentText = text;
-  els.preview.innerHTML = renderMarkdown(currentText, currentBaseDir);
-  isDirty = false;
+async function saveActiveTab(): Promise<void> {
+  const tab = activeTab();
+  if (!tab || !tab.isEditing || !editHandle) return;
+  const text = applyLineEnding(editHandle.getValue(), tab.lineEnding);
+  const bytes = encodeText(text, tab.encoding);
+  tab.ignoreNextExternalChange = true;
+  await writeFile(tab.filePath, bytes);
+  tab.text = text;
+  tab.editBuffer = text;
+  tab.isDirty = false;
+  renderTabBar();
   updateEditUiState();
 }
 
 async function exportAs(format: ExportFormat): Promise<void> {
-  if (!currentFile) return;
+  const tab = activeTab();
+  if (!tab) return;
   if (format === "pdf") {
     window.print();
     return;
   }
 
-  const sourceText = isEditing && editHandle ? editHandle.getValue() : currentText;
-  const base = (await basename(currentFile)).replace(/\.[^.]+$/, "");
+  const sourceText = tab.isEditing && editHandle ? editHandle.getValue() : tab.text;
+  const base = (await basename(tab.filePath)).replace(/\.[^.]+$/, "");
 
   try {
     if (format === "txt") {
@@ -218,7 +404,7 @@ async function exportAs(format: ExportFormat): Promise<void> {
     } else if (format === "html") {
       const path = await save({ defaultPath: `${base}.html`, filters: [{ name: "HTML", extensions: ["html"] }] });
       if (!path) return;
-      const bodyHtml = renderMarkdown(sourceText, currentBaseDir);
+      const bodyHtml = renderMarkdown(sourceText, tab.baseDir);
       await writeTextFile(path, markdownToStandaloneHtml(bodyHtml, base, EXPORT_HTML_CSS));
     } else if (format === "docx") {
       const path = await save({ defaultPath: `${base}.docx`, filters: [{ name: "Word", extensions: ["docx"] }] });
@@ -232,21 +418,23 @@ async function exportAs(format: ExportFormat): Promise<void> {
   }
 }
 
+// --- Folder / file opening -----------------------------------------------
+
 async function openFolder(): Promise<void> {
-  if (!(await confirmDiscardIfDirty())) return;
   const selected = await open({ directory: true, multiple: false });
   if (!selected || Array.isArray(selected)) return;
-  if (isEditing) exitEditMode();
   await loadFolder(selected);
 }
 
 async function openFile(): Promise<void> {
-  if (!(await confirmDiscardIfDirty())) return;
   const selected = await open({ multiple: false, filters: MD_FILTER });
   if (!selected || Array.isArray(selected)) return;
-  if (isEditing) exitEditMode();
-  const dir = await dirname(selected);
-  await loadFolder(dir, selected);
+  if (!currentRoot) {
+    const dir = await dirname(selected);
+    await loadFolder(dir, selected);
+  } else {
+    await openTabForFile(selected);
+  }
 }
 
 async function loadFolder(rootPath: string, initialFile?: string): Promise<void> {
@@ -257,79 +445,14 @@ async function loadFolder(rootPath: string, initialFile?: string): Promise<void>
   els.statusLeft.textContent = t("status.scanning");
 
   const tree = await buildTree(rootPath, rootName, settings.showHidden);
-  renderTree(tree, els.fileTree, { onSelectFile: handleTreeSelect });
+  renderTree(tree, els.fileTree, { onSelectFile: (path) => void openTabForFile(path) });
 
   const target = initialFile ?? findFirstFile(tree)?.path ?? null;
   if (target) {
-    await selectFile(target);
-  } else {
+    await openTabForFile(target);
+  } else if (tabs.length === 0) {
     els.statusLeft.textContent = t("status.noMarkdown");
   }
-}
-
-async function handleTreeSelect(filePath: string): Promise<void> {
-  if (filePath === currentFile) return;
-  if (!(await confirmDiscardIfDirty())) return;
-  if (isEditing) exitEditMode();
-  await selectFile(filePath);
-}
-
-async function selectFile(filePath: string): Promise<void> {
-  try {
-    const bytes = await readFile(filePath);
-    const encoding = detectEncoding(bytes);
-    const text = decodeBytes(bytes, encoding);
-    const baseDir = await dirname(filePath);
-    currentText = text;
-    currentBaseDir = baseDir;
-    currentEncoding = encoding;
-    currentLineEnding = detectLineEnding(text);
-    els.preview.innerHTML = renderMarkdown(text, baseDir);
-    els.preview.hidden = false;
-    els.emptyState.hidden = true;
-    els.breadcrumb.textContent = await buildBreadcrumb(filePath);
-    els.statusLeft.textContent = filePath;
-    localStorage.setItem(LAST_FILE_KEY, filePath);
-    currentFile = filePath;
-    setActiveFile(filePath);
-    els.preview.scrollTop = 0;
-    updateEditUiState();
-    updateStatusChips();
-    await watchCurrentFile();
-  } catch (err) {
-    els.statusLeft.textContent = t("status.openError", { error: String(err) });
-  }
-}
-
-async function reloadCurrentFile(): Promise<void> {
-  if (!currentFile || isEditing) return;
-  try {
-    const bytes = await readFile(currentFile);
-    currentEncoding = detectEncoding(bytes);
-    const text = decodeBytes(bytes, currentEncoding);
-    currentLineEnding = detectLineEnding(text);
-    const scrollTop = els.preview.scrollTop;
-    currentText = text;
-    els.preview.innerHTML = renderMarkdown(text, currentBaseDir);
-    els.preview.scrollTop = scrollTop;
-    updateStatusChips();
-  } catch {
-    // The file may have been removed or is mid-write; keep showing the last good render.
-  }
-}
-
-async function watchCurrentFile(): Promise<void> {
-  unwatchFile?.();
-  unwatchFile = null;
-  if (!settings.autoReload || !currentFile || isEditing) return;
-  unwatchFile = await watchImmediate(currentFile, () => {
-    if (ignoreNextExternalChange) {
-      ignoreNextExternalChange = false;
-      return;
-    }
-    if (reloadTimer) clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => void reloadCurrentFile(), RELOAD_DEBOUNCE_MS);
-  });
 }
 
 async function buildBreadcrumb(filePath: string): Promise<string> {
@@ -344,7 +467,10 @@ async function buildBreadcrumb(filePath: string): Promise<string> {
 function showEmptyState(): void {
   els.emptyState.hidden = false;
   els.preview.hidden = true;
+  els.editLayout.hidden = true;
   els.breadcrumb.textContent = "";
+  activeTabPath = null;
+  renderTabBar();
   updateEditUiState();
   updateStatusChips();
 }
@@ -359,6 +485,8 @@ async function restoreLastSession(): Promise<void> {
   const fileStillValid = lastFile && (await exists(lastFile));
   await loadFolder(lastRoot, fileStillValid ? lastFile! : undefined);
 }
+
+// --- Event wiring ----------------------------------------------------------
 
 els.openFolderBtn.addEventListener("click", openFolder);
 els.openFileBtn.addEventListener("click", openFile);
@@ -382,19 +510,75 @@ els.exportMenu.addEventListener("click", (e) => {
 setupDropdown(els.statusEncoding, els.encodingMenu);
 els.encodingMenu.addEventListener("click", (e) => {
   const button = (e.target as HTMLElement).closest<HTMLElement>("[data-encoding]");
-  if (!button || !currentFile) return;
-  currentEncoding = button.dataset.encoding as TextEncodingId;
+  const tab = activeTab();
+  if (!button || !tab) return;
+  tab.encoding = button.dataset.encoding as TextEncodingId;
   updateStatusChips();
-  if (isEditing) markDirty();
+  if (tab.isEditing) markDirty(tab);
 });
 
 setupDropdown(els.statusLineEnding, els.lineEndingMenu);
 els.lineEndingMenu.addEventListener("click", (e) => {
   const button = (e.target as HTMLElement).closest<HTMLElement>("[data-line-ending]");
-  if (!button || !currentFile) return;
-  currentLineEnding = button.dataset.lineEnding as LineEnding;
+  const tab = activeTab();
+  if (!button || !tab) return;
+  tab.lineEnding = button.dataset.lineEnding as LineEnding;
   updateStatusChips();
-  if (isEditing) markDirty();
+  if (tab.isEditing) markDirty(tab);
+});
+
+setupDropdown(els.menuFileBtn, els.menuFile);
+els.menuFile.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const exportBtn = target.closest<HTMLElement>("[data-export]");
+  if (exportBtn) {
+    void exportAs(exportBtn.dataset.export as ExportFormat);
+    return;
+  }
+  const actionBtn = target.closest<HTMLElement>("[data-action]");
+  if (!actionBtn) return;
+  switch (actionBtn.dataset.action) {
+    case "open-file":
+      void openFile();
+      break;
+    case "open-folder":
+      void openFolder();
+      break;
+    case "save":
+      void saveActiveTab();
+      break;
+    case "close-tab":
+      if (activeTabPath) void closeTab(activeTabPath);
+      break;
+  }
+});
+
+setupDropdown(els.menuViewBtn, els.menuView);
+els.menuView.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const themeBtn = target.closest<HTMLElement>("[data-theme-choice]");
+  if (themeBtn) {
+    settings.theme = themeBtn.dataset.themeChoice as ThemeMode;
+    saveSettings(settings);
+    applySettings(settings);
+    return;
+  }
+  const actionBtn = target.closest<HTMLElement>("[data-action]");
+  if (!actionBtn) return;
+  switch (actionBtn.dataset.action) {
+    case "toggle-sidebar":
+      els.body.classList.toggle("sidebar-hidden");
+      break;
+    case "open-settings":
+      els.settingsBtn.click();
+      break;
+  }
+});
+
+setupDropdown(els.menuHelpBtn, els.menuHelp);
+els.menuHelp.addEventListener("click", (e) => {
+  const actionBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+  if (actionBtn?.dataset.action === "open-repo") void openUrl(REPO_URL);
 });
 
 window.addEventListener("keydown", (e) => {
@@ -410,17 +594,23 @@ window.addEventListener("keydown", (e) => {
     void toggleEditMode();
   } else if (key === "s") {
     e.preventDefault();
-    void saveCurrentFile();
+    void saveActiveTab();
+  } else if (key === "w") {
+    e.preventDefault();
+    if (activeTabPath) void closeTab(activeTabPath);
   }
 });
 
 initSettingsPanel(settings, {
-  onLanguageChange: () => updateEditUiState(),
+  onLanguageChange: () => {
+    updateEditUiState();
+    renderTabBar();
+  },
   onShowHiddenChange: () => {
-    if (currentRoot) void loadFolder(currentRoot, currentFile ?? undefined);
+    if (currentRoot) void loadFolder(currentRoot, activeTabPath ?? undefined);
   },
   onAutoReloadChange: () => {
-    void watchCurrentFile();
+    for (const tab of tabs) void watchTab(tab);
   },
 });
 

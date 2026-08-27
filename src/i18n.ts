@@ -39,6 +39,19 @@ const it: Dict = {
   "export.html": "HTML",
   "status.encoding.title": "Codifica del file",
   "status.lineEnding.title": "Fine riga",
+  "menu.file": "File",
+  "menu.view": "Visualizza",
+  "menu.help": "Aiuto",
+  "menu.openFile": "Apri file… (Ctrl+O)",
+  "menu.openFolder": "Apri cartella… (Ctrl+Shift+O)",
+  "menu.save": "Salva (Ctrl+S)",
+  "menu.closeTab": "Chiudi tab (Ctrl+W)",
+  "menu.export": "Esporta",
+  "menu.toggleSidebar": "Mostra/nascondi sidebar",
+  "menu.theme": "Tema",
+  "menu.settings": "Impostazioni…",
+  "menu.repo": "Repository su GitHub",
+  "tab.closeTitle": "Chiudi tab",
 };
 
 const en: Dict = {
@@ -78,6 +91,19 @@ const en: Dict = {
   "export.html": "HTML",
   "status.encoding.title": "File encoding",
   "status.lineEnding.title": "Line ending",
+  "menu.file": "File",
+  "menu.view": "View",
+  "menu.help": "Help",
+  "menu.openFile": "Open file… (Ctrl+O)",
+  "menu.openFolder": "Open folder… (Ctrl+Shift+O)",
+  "menu.save": "Save (Ctrl+S)",
+  "menu.closeTab": "Close tab (Ctrl+W)",
+  "menu.export": "Export",
+  "menu.toggleSidebar": "Toggle sidebar",
+  "menu.theme": "Theme",
+  "menu.settings": "Settings…",
+  "menu.repo": "Repository on GitHub",
+  "tab.closeTitle": "Close tab",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };
