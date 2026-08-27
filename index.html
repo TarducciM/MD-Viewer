@@ -85,7 +85,16 @@
 
       <div id="body">
         <aside id="sidebar">
-          <div id="sidebar-header"><span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span></div>
+          <div id="sidebar-header">
+            <span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span>
+            <button type="button" id="sidebar-search-toggle" class="icon-btn" data-i18n-title="sidebar.search.title" aria-label="Search">
+              <svg viewBox="0 0 16 16" class="icon"><circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor"/><path d="M10 10l4 4" stroke="currentColor" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div id="sidebar-search" hidden>
+            <input type="text" id="sidebar-search-input" data-i18n-placeholder="sidebar.search.placeholder" placeholder="Cerca nei file…" />
+            <div id="sidebar-search-results"></div>
+          </div>
           <div id="file-tree"></div>
         </aside>
         <div id="resizer"></div>
