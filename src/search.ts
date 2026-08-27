@@ -12,7 +12,7 @@ export interface SearchResult {
 
 const MAX_MATCHES_PER_FILE = 20;
 
-function flattenFiles(node: TreeNode, out: TreeNode[] = []): TreeNode[] {
+export function flattenFiles(node: TreeNode, out: TreeNode[] = []): TreeNode[] {
   if (node.isDir) {
     for (const child of node.children ?? []) flattenFiles(child, out);
   } else {

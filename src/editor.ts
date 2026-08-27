@@ -240,6 +240,7 @@ export function createMarkdownEditor(
   initialText: string,
   onChange: (text: string) => void,
   onScroll?: (topLine: number) => void,
+  onImagePaste?: (blob: Blob) => Promise<string | null>,
 ): MarkdownEditorHandle {
   const view = new EditorView({
     state: EditorState.create({
@@ -277,6 +278,25 @@ export function createMarkdownEditor(
     : null;
   if (handleScroll) view.scrollDOM.addEventListener("scroll", handleScroll);
 
+  const handlePaste = onImagePaste
+    ? (event: ClipboardEvent) => {
+        const item = Array.from(event.clipboardData?.items ?? []).find((i) => i.type.startsWith("image/"));
+        const file = item?.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        onImagePaste(file).then((markdown) => {
+          if (!markdown) return;
+          const pos = view.state.selection.main.from;
+          view.dispatch({
+            changes: { from: pos, to: pos, insert: markdown },
+            selection: { anchor: pos + markdown.length },
+          });
+          view.focus();
+        });
+      }
+    : null;
+  if (handlePaste) view.dom.addEventListener("paste", handlePaste);
+
   return {
     getValue: () => view.state.doc.toString(),
     setValue: (text: string) => {
@@ -287,6 +307,7 @@ export function createMarkdownEditor(
     destroy: () => {
       if (scrollTimer) clearTimeout(scrollTimer);
       if (handleScroll) view.scrollDOM.removeEventListener("scroll", handleScroll);
+      if (handlePaste) view.dom.removeEventListener("paste", handlePaste);
       view.destroy();
     },
   };

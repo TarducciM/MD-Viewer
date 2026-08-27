@@ -1,8 +1,9 @@
-import MarkdownIt from "markdown-it";
+import MarkdownIt, { type StateInline } from "markdown-it";
 // @ts-ignore - no type declarations shipped, see src/types.d.ts
 import taskLists from "markdown-it-task-lists";
 import hljs from "highlight.js";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { parseFrontmatter, type FrontmatterValue } from "./frontmatter";
 
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -88,6 +89,44 @@ const md = new MarkdownIt({
 
 md.use(taskLists, { enabled: true, label: true });
 
+function escapeAttr(text: string): string {
+  return escapeHtml(text).replace(/"/g, "&quot;");
+}
+
+// `[[target]]` or `[[target|label]]` — resolved to an actual file by the app
+// at click time (see resolveWikiTarget in main.ts), not at render time.
+function wikiLinkRule(state: StateInline, silent: boolean): boolean {
+  const start = state.pos;
+  if (state.src.slice(start, start + 2) !== "[[") return false;
+
+  const end = state.src.indexOf("]]", start + 2);
+  if (end === -1) return false;
+
+  const inner = state.src.slice(start + 2, end);
+  if (!inner || inner.includes("\n")) return false;
+
+  const pipeIndex = inner.indexOf("|");
+  const target = (pipeIndex === -1 ? inner : inner.slice(0, pipeIndex)).trim();
+  if (!target) return false;
+
+  if (!silent) {
+    const label = pipeIndex === -1 ? target : inner.slice(pipeIndex + 1).trim();
+    const token = state.push("wikilink", "a", 0);
+    token.attrSet("data-wiki-target", target);
+    token.content = label || target;
+  }
+
+  state.pos = end + 2;
+  return true;
+}
+
+md.inline.ruler.before("link", "wikilink", wikiLinkRule);
+md.renderer.rules.wikilink = (tokens, idx) => {
+  const token = tokens[idx];
+  const target = String(token.attrGet("data-wiki-target") ?? "");
+  return `<a class="wiki-link" data-wiki-target="${escapeAttr(target)}">${escapeHtml(token.content)}</a>`;
+};
+
 // Resolve a relative path against a base directory without the async path API,
 // so it can run inside markdown-it's synchronous renderer rules.
 export function resolveRelativePath(baseDir: string, relative: string): string {
@@ -162,8 +201,38 @@ md.renderer.renderToken = (tokens, idx, options) => {
   return defaultRenderToken(tokens, idx, options);
 };
 
+// Blanks out the frontmatter block's lines (keeping the same line count) so
+// content after it keeps the source line numbers that data-line/outline rely on.
+function blankFrontmatterLines(source: string, lineCount: number): string {
+  const lines = source.split("\n");
+  for (let i = 0; i < lineCount; i++) lines[i] = "";
+  return lines.join("\n");
+}
+
+function renderFrontmatterValue(value: FrontmatterValue): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => `<span class="frontmatter-tag">${escapeHtml(item)}</span>`).join("");
+  }
+  return `<span class="frontmatter-text">${escapeHtml(String(value))}</span>`;
+}
+
+function renderFrontmatterCard(data: Record<string, FrontmatterValue>): string {
+  const keys = Object.keys(data);
+  if (keys.length === 0) return "";
+  const rows = keys
+    .map(
+      (key) =>
+        `<div class="frontmatter-row"><span class="frontmatter-key">${escapeHtml(key)}</span>${renderFrontmatterValue(data[key])}</div>`,
+    )
+    .join("");
+  return `<div class="frontmatter-card">${rows}</div>`;
+}
+
 export function renderMarkdown(source: string, baseDir: string): string {
-  return md.render(source, { baseDir });
+  const fm = parseFrontmatter(source);
+  if (!fm) return md.render(source, { baseDir });
+  const working = blankFrontmatterLines(source, fm.endLine);
+  return renderFrontmatterCard(fm.data) + md.render(working, { baseDir });
 }
 
 export interface OutlineEntry {
@@ -173,7 +242,9 @@ export interface OutlineEntry {
 }
 
 export function extractOutline(source: string): OutlineEntry[] {
-  const tokens = md.parse(source, {});
+  const fm = parseFrontmatter(source);
+  const working = fm ? blankFrontmatterLines(source, fm.endLine) : source;
+  const tokens = md.parse(working, {});
   const counts = new Map<string, number>();
   const entries: OutlineEntry[] = [];
   for (let i = 0; i < tokens.length; i++) {
