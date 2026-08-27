@@ -73,7 +73,8 @@
   <p>MD Viewer runs entirely on your own device. It opens the files and folders you point it at, and nothing else.</p>
   <ul>
     <li><strong>No accounts, no cloud sync.</strong> There's nothing to log into.</li>
-    <li><strong>No telemetry, no analytics, no crash reporting.</strong> The app doesn't phone home — verified against its own source, not just claimed.</li>
+    <li><strong>No telemetry, no analytics, no crash reporting.</strong> Verified against its own source, not just claimed — the only network request the app ever makes on its own is the update check below, nothing else.</li>
+    <li><strong>Automatic update check.</strong> A few seconds after launch, and whenever you trigger it manually from the Help menu, the app asks GitHub's release endpoint whether a newer version exists — a plain version check, no personal data included, no unique identifier attached beyond what any HTTP request inherently carries (like your IP address, visible to GitHub the same way it would be for any download). Updates are cryptographically signed and verified before installing. There's currently no setting to turn this check off — if that changes, this page will say so.</li>
     <li><strong>Settings stay on your device.</strong> Theme, language, and editor preferences are saved locally (in the app's own storage), never transmitted anywhere.</li>
     <li><strong>Remote content in your own files.</strong> If a Markdown file you open references a remote image or link, your device will request that content directly from wherever the file points — the same way a web browser would. That's a consequence of the file you opened, not something MD Viewer initiates on its own.</li>
   </ul>
@@ -90,7 +91,7 @@
   <p>Neither the app nor this website use cookies. See the <a href="cookie-policy.html">Cookie Policy</a> for the full, short answer.</p>
 
   <h2>Changes to this page</h2>
-  <p>If MD Viewer ever starts doing something that isn't described here — an optional update checker, for instance — this page will be updated first, and the change will be described honestly, not buried.</p>
+  <p>This page is kept in sync with what the app actually does, not what it did when first written — the update checker above was added after this policy's first draft, and the policy was updated in the same commit that shipped it, not after the fact.</p>
 
   <h2>Data controller</h2>
   <p>MD Viewer isn't part of the commercial MTSolutions product catalog — it's a personal, MIT-licensed side project — but it's published by the same legal entity behind MTSolutions: <strong>San Marino Games S.r.l.</strong>, Via Fondo Ausa 68, 47891 Dogana, Repubblica di San Marino (RSM), C.O.E. SM18083.</p>
