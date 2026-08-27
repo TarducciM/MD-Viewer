@@ -671,6 +671,53 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
+#update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: var(--bg-selected);
+  color: #fff;
+  font-size: 12.5px;
+  flex-shrink: 0;
+}
+
+#update-banner[hidden] {
+  display: none;
+}
+
+#update-banner-text {
+  flex: 1;
+}
+
+#update-banner-action {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#update-banner-action:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+#update-banner-action[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#update-banner-dismiss {
+  color: #fff;
+}
+
+#update-banner-dismiss:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 #dirty-indicator {
   -webkit-app-region: no-drag;
   color: var(--link);

@@ -52,6 +52,7 @@ const it: Dict = {
   "menu.toggleOutline": "Mostra/nascondi indice",
   "menu.theme": "Tema",
   "menu.settings": "Impostazioni…",
+  "menu.checkUpdate": "Controlla aggiornamenti",
   "menu.repo": "Repository su GitHub",
   "tab.closeTitle": "Chiudi tab",
   "status.wordcount": "{words} parole · ~{minutes} min",
@@ -62,6 +63,12 @@ const it: Dict = {
   "sidebar.search.noResults": "Nessun risultato.",
   "sidebar.search.typeToSearch": "Digita per cercare nei file del progetto.",
   "mermaid.error": "Errore nel diagramma Mermaid: {error}",
+  "updater.available": "È disponibile la versione {version}.",
+  "updater.updateNow": "Aggiorna ora",
+  "updater.upToDate": "Stai già usando l'ultima versione.",
+  "updater.downloading": "Download dell'aggiornamento in corso…",
+  "updater.downloadingProgress": "Download in corso… {percent}%",
+  "updater.error": "Aggiornamento non riuscito: {error}",
 };
 
 const en: Dict = {
@@ -114,6 +121,7 @@ const en: Dict = {
   "menu.toggleOutline": "Toggle outline",
   "menu.theme": "Theme",
   "menu.settings": "Settings…",
+  "menu.checkUpdate": "Check for updates",
   "menu.repo": "Repository on GitHub",
   "tab.closeTitle": "Close tab",
   "status.wordcount": "{words} words · ~{minutes} min read",
@@ -124,6 +132,12 @@ const en: Dict = {
   "sidebar.search.noResults": "No results.",
   "sidebar.search.typeToSearch": "Type to search across project files.",
   "mermaid.error": "Mermaid diagram error: {error}",
+  "updater.available": "Version {version} is available.",
+  "updater.updateNow": "Update now",
+  "updater.upToDate": "You're already on the latest version.",
+  "updater.downloading": "Downloading update…",
+  "updater.downloadingProgress": "Downloading… {percent}%",
+  "updater.error": "Update failed: {error}",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };
