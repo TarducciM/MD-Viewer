@@ -81,3 +81,18 @@ jobs:
 
           cat downloads.md notes.md > full-notes.md
           gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --notes-file full-notes.md
+
+  cleanup-on-failure:
+    needs: publish
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # A platform build failed, so the draft release (if tauri-action managed to create
+      # it before the failure) only has some of the assets. Remove it rather than leave a
+      # broken half-release behind. Re-run the failed run (or workflow_dispatch) to retry
+      # once fixed; the tag itself is untouched.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes || true
