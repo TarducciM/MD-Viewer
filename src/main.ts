@@ -34,6 +34,7 @@ import { markdownToDocxBlob } from "./docxExport";
 import { countWords } from "./wordcount";
 import { getRecents, addRecent } from "./recents";
 import { searchInFiles, type SearchResult } from "./search";
+import { checkForUpdate, installPendingUpdate } from "./updater";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -41,6 +42,7 @@ const MD_FILTER = [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "
 const RELOAD_DEBOUNCE_MS = 150;
 const EDIT_PREVIEW_DEBOUNCE_MS = 120;
 const REPO_URL = "https://github.com/TarducciM/MD-Viewer";
+const UPDATE_CHECK_DELAY_MS = 3000;
 
 type ExportFormat = "pdf" | "docx" | "txt" | "html";
 
@@ -102,6 +104,10 @@ const els = {
   sidebarSearch: document.querySelector<HTMLDivElement>("#sidebar-search")!,
   sidebarSearchInput: document.querySelector<HTMLInputElement>("#sidebar-search-input")!,
   sidebarSearchResults: document.querySelector<HTMLDivElement>("#sidebar-search-results")!,
+  updateBanner: document.querySelector<HTMLDivElement>("#update-banner")!,
+  updateBannerText: document.querySelector<HTMLSpanElement>("#update-banner-text")!,
+  updateBannerAction: document.querySelector<HTMLButtonElement>("#update-banner-action")!,
+  updateBannerDismiss: document.querySelector<HTMLButtonElement>("#update-banner-dismiss")!,
 };
 
 const settings: Settings = loadSettings();
@@ -681,6 +687,24 @@ async function restoreLastSession(): Promise<void> {
   await loadFolder(lastRoot, fileStillValid ? lastFile! : undefined);
 }
 
+// --- Updates -------------------------------------------------------------
+
+function showUpdateBanner(message: string, showAction: boolean): void {
+  els.updateBannerText.textContent = message;
+  els.updateBannerAction.hidden = !showAction;
+  els.updateBannerAction.disabled = false;
+  els.updateBanner.hidden = false;
+}
+
+async function runUpdateCheck(manual: boolean): Promise<void> {
+  const result = await checkForUpdate();
+  if (result.available) {
+    showUpdateBanner(t("updater.available", { version: result.version! }), true);
+  } else if (manual) {
+    showUpdateBanner(t("updater.upToDate"), false);
+  }
+}
+
 // --- Event wiring ----------------------------------------------------------
 
 els.openFolderBtn.addEventListener("click", openFolder);
@@ -778,6 +802,25 @@ setupDropdown(els.menuHelpBtn, els.menuHelp);
 els.menuHelp.addEventListener("click", (e) => {
   const actionBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
   if (actionBtn?.dataset.action === "open-repo") void openUrl(REPO_URL);
+  else if (actionBtn?.dataset.action === "check-update") void runUpdateCheck(true);
+});
+
+els.updateBannerDismiss.addEventListener("click", () => {
+  els.updateBanner.hidden = true;
+});
+els.updateBannerAction.addEventListener("click", () => {
+  els.updateBannerAction.disabled = true;
+  els.updateBannerText.textContent = t("updater.downloading");
+  installPendingUpdate((downloaded, total) => {
+    if (total > 0) {
+      els.updateBannerText.textContent = t("updater.downloadingProgress", {
+        percent: String(Math.round((downloaded / total) * 100)),
+      });
+    }
+  }).catch((err) => {
+    els.updateBannerText.textContent = t("updater.error", { error: String(err) });
+    els.updateBannerAction.disabled = false;
+  });
 });
 
 window.addEventListener("keydown", (e) => {
@@ -833,3 +876,4 @@ setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.query
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
 setupDragDrop();
 void restoreLastSession();
+setTimeout(() => void runUpdateCheck(false), UPDATE_CHECK_DELAY_MS);
