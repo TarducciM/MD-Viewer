@@ -36,7 +36,29 @@ export function splitHighlightedLines(html: string): string[] {
   });
 }
 
+// Deterministic (not incremental) so the same diagram text always maps to the
+// same id across re-renders, avoiding stale async mermaid.render() results
+// from a previous render clobbering a same-numbered placeholder in a new one.
+function hashString(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+// Keyed by id, populated as a side effect of rendering; consumed by
+// renderMermaidBlocks() after the HTML is inserted into the DOM, since
+// mermaid.render() is async and can't run inside markdown-it's sync renderer.
+export const mermaidSources = new Map<string, string>();
+
 function renderCodeBlock(code: string, lang?: string): string {
+  if (lang === "mermaid") {
+    const id = `mermaid-${hashString(code)}`;
+    mermaidSources.set(id, code);
+    return `<div class="mermaid-block" data-mermaid-id="${id}"><pre class="mermaid-fallback">${escapeHtml(code)}</pre></div>`;
+  }
+
   const language = lang && hljs.getLanguage(lang) ? lang : undefined;
   let highlighted: string;
   try {

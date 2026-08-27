@@ -899,6 +899,45 @@ body {
   padding-left: 16px;
 }
 
+.mermaid-block {
+  margin: 1em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.mermaid-block .mermaid-fallback {
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 0.85em;
+  text-align: left;
+  background: var(--bg-code);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+}
+
+.mermaid-block.mermaid-rendered {
+  background: var(--bg-code);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.mermaid-block.mermaid-rendered svg {
+  max-width: 100%;
+}
+
+.mermaid-block.mermaid-error {
+  text-align: left;
+  font-size: 0.85em;
+  color: #e5484d;
+  background: var(--bg-code);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;

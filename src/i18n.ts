@@ -61,6 +61,7 @@ const it: Dict = {
   "sidebar.search.placeholder": "Cerca nei file…",
   "sidebar.search.noResults": "Nessun risultato.",
   "sidebar.search.typeToSearch": "Digita per cercare nei file del progetto.",
+  "mermaid.error": "Errore nel diagramma Mermaid: {error}",
 };
 
 const en: Dict = {
@@ -122,6 +123,7 @@ const en: Dict = {
   "sidebar.search.placeholder": "Search files…",
   "sidebar.search.noResults": "No results.",
   "sidebar.search.typeToSearch": "Type to search across project files.",
+  "mermaid.error": "Mermaid diagram error: {error}",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };
