@@ -526,7 +526,7 @@ body {
 }
 
 .markdown-body code {
-  font-family: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
   font-size: 0.87em;
   background: var(--bg-panel-alt);
   border: 1px solid var(--border-soft);
@@ -536,7 +536,7 @@ body {
 }
 
 .markdown-body pre.hljs {
-  font-family: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
   font-size: 0.85em;
   line-height: 1.55;
   background: var(--bg-code);

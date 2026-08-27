@@ -4,7 +4,7 @@ import taskLists from "markdown-it-task-lists";
 import hljs from "highlight.js";
 import { convertFileSrc } from "@tauri-apps/api/core";
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
@@ -12,7 +12,7 @@ function escapeHtml(text: string): string {
 // would leave unbalanced tags on lines that cross a token boundary (e.g. multi-line
 // comments/strings). This re-splits the highlighted HTML into per-line strings,
 // closing and reopening any span that's still open at each line break.
-function splitHighlightedLines(html: string): string[] {
+export function splitHighlightedLines(html: string): string[] {
   const openTags: string[] = [];
   const tagRegex = /<span([^>]*)>|<\/span>/g;
   return html.split("\n").map((line) => {
@@ -68,15 +68,17 @@ md.use(taskLists, { enabled: true, label: true });
 
 // Resolve a relative path against a base directory without the async path API,
 // so it can run inside markdown-it's synchronous renderer rules.
-function resolveRelativePath(baseDir: string, relative: string): string {
+export function resolveRelativePath(baseDir: string, relative: string): string {
   const sep = baseDir.includes("\\") ? "\\" : "/";
+  const isPosixAbsolute = baseDir.startsWith("/");
   const baseParts = baseDir.split(/[\\/]/).filter((p) => p.length > 0);
   for (const part of relative.split(/[\\/]/)) {
     if (part === "" || part === ".") continue;
     if (part === "..") baseParts.pop();
     else baseParts.push(part);
   }
-  return baseParts.join(sep);
+  const joined = baseParts.join(sep);
+  return isPosixAbsolute ? sep + joined : joined;
 }
 
 function isRemoteOrData(src: string): boolean {
