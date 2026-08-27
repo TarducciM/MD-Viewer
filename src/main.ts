@@ -7,7 +7,7 @@ import { renderTree, setActiveFile } from "./treeView";
 import { loadSettings, applySettings, type Settings } from "./settings";
 import { setLanguage, applyTranslations, t } from "./i18n";
 import { initSettingsPanel } from "./settingsPanel";
-import { createMarkdownEditor, type MarkdownEditorHandle } from "./editor";
+import { createMarkdownEditor, type MarkdownEditorHandle, type FormatAction } from "./editor";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -32,6 +32,8 @@ const els = {
   editorPane: document.querySelector<HTMLDivElement>("#editor-pane")!,
   editPreview: document.querySelector<HTMLElement>("#edit-preview")!,
   editCloseBtn: document.querySelector<HTMLButtonElement>("#edit-close-btn")!,
+  editorColumn: document.querySelector<HTMLDivElement>("#editor-column")!,
+  editToolbar: document.querySelector<HTMLDivElement>("#edit-toolbar")!,
 };
 
 const settings: Settings = loadSettings();
@@ -264,6 +266,11 @@ els.emptyOpenFolderBtn.addEventListener("click", openFolder);
 els.emptyOpenFileBtn.addEventListener("click", openFile);
 els.editBtn.addEventListener("click", () => void toggleEditMode());
 els.editCloseBtn.addEventListener("click", () => void toggleEditMode());
+els.editToolbar.addEventListener("click", (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-format]");
+  if (!button || !editHandle) return;
+  editHandle.format(button.dataset.format as FormatAction);
+});
 
 window.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
@@ -294,5 +301,5 @@ initSettingsPanel(settings, {
 
 applyTranslations();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
-setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorPane);
+setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
 void restoreLastSession();
