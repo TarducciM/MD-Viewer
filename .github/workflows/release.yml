@@ -59,6 +59,18 @@ jobs:
           prerelease: false
           uploadUpdaterJson: true
 
+      # The installer/MSI need setup; this is the raw build, drop it anywhere and run it.
+      # Not wired into the updater (that flow targets the installed/bundled formats).
+      - if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          portable="MD Viewer_${version}_x64-portable.exe"
+          cp "src-tauri/target/release/tauri-app.exe" "$portable"
+          gh release upload "${{ github.ref_name }}" "$portable" --repo "${{ github.repository }}" --clobber
+
   notes:
     needs: publish
     runs-on: ubuntu-latest
@@ -76,7 +88,7 @@ jobs:
 
           | Platform | File |
           | --- | --- |
-          | Windows | `*_x64-setup.exe` (installer) or `*_x64_en-US.msi` |
+          | Windows | `*_x64-setup.exe` (installer), `*_x64_en-US.msi`, or `*_x64-portable.exe` (no install needed) |
           | macOS (Apple Silicon) | `*_aarch64.dmg` |
           | macOS (Intel) | `*_x64.dmg` |
           | Linux | `*.AppImage`, `*.deb`, or `*.rpm` |
