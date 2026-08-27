@@ -32,6 +32,7 @@ import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "
 import { markdownToDocxBlob } from "./docxExport";
 import { countWords } from "./wordcount";
 import { getRecents, addRecent } from "./recents";
+import { searchInFiles, type SearchResult } from "./search";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -96,6 +97,10 @@ const els = {
   lineEndingMenu: document.querySelector<HTMLDivElement>("#line-ending-menu")!,
   outlinePanel: document.querySelector<HTMLDivElement>("#outline-panel")!,
   outlineList: document.querySelector<HTMLDivElement>("#outline-list")!,
+  sidebarSearchToggle: document.querySelector<HTMLButtonElement>("#sidebar-search-toggle")!,
+  sidebarSearch: document.querySelector<HTMLDivElement>("#sidebar-search")!,
+  sidebarSearchInput: document.querySelector<HTMLInputElement>("#sidebar-search-input")!,
+  sidebarSearchResults: document.querySelector<HTMLDivElement>("#sidebar-search-results")!,
 };
 
 const settings: Settings = loadSettings();
@@ -202,6 +207,72 @@ function renderRecentMenu(): void {
   }
 }
 
+// --- Sidebar search ----------------------------------------------------
+
+const SEARCH_DEBOUNCE_MS = 200;
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function readFileTextForSearch(path: string): Promise<string | null> {
+  const openTab = findTab(path);
+  if (openTab) return openTab.isEditing ? (openTab.editBuffer ?? openTab.text) : openTab.text;
+  try {
+    const bytes = await readFile(path);
+    return decodeBytes(bytes, detectEncoding(bytes));
+  } catch {
+    return null;
+  }
+}
+
+function renderSearchResults(query: string, results: SearchResult[]): void {
+  els.sidebarSearchResults.innerHTML = "";
+  if (!query.trim()) {
+    const hint = document.createElement("div");
+    hint.className = "search-empty";
+    hint.textContent = t("sidebar.search.typeToSearch");
+    els.sidebarSearchResults.appendChild(hint);
+    return;
+  }
+  if (results.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "search-empty";
+    empty.textContent = t("sidebar.search.noResults");
+    els.sidebarSearchResults.appendChild(empty);
+    return;
+  }
+  for (const result of results) {
+    const fileLabel = document.createElement("div");
+    fileLabel.className = "search-result-file";
+    fileLabel.textContent = result.path.split(/[\\/]/).pop() ?? result.path;
+    fileLabel.title = result.path;
+    els.sidebarSearchResults.appendChild(fileLabel);
+    for (const match of result.matches) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "search-result-match";
+      btn.textContent = match.text || "…";
+      btn.addEventListener("click", () => void openSearchResult(result.path, match.line));
+      els.sidebarSearchResults.appendChild(btn);
+    }
+  }
+}
+
+async function openSearchResult(path: string, line: number): Promise<void> {
+  await openTabForFile(path);
+  const tab = activeTab();
+  if (!tab) return;
+  scrollToLine(tab.isEditing ? els.editPreview : els.preview, line);
+}
+
+async function runSearch(query: string): Promise<void> {
+  if (!currentRoot) {
+    renderSearchResults(query, []);
+    return;
+  }
+  const rootName = await basename(currentRoot);
+  const results = await searchInFiles(currentRoot, rootName, query, settings.showHidden, readFileTextForSearch);
+  renderSearchResults(query, results);
+}
+
 // --- Per-tab state helpers -------------------------------------------------
 
 function markDirty(tab: Tab): void {
@@ -226,16 +297,21 @@ function showTabContent(tab: Tab): void {
     els.editLayout.hidden = false;
     const initial = tab.editBuffer ?? tab.text;
     els.editPreview.innerHTML = renderMarkdown(initial, tab.baseDir);
-    editHandle = createMarkdownEditor(els.editorPane, initial, (text) => {
-      tab.editBuffer = text;
-      markDirty(tab);
-      if (editPreviewTimer) clearTimeout(editPreviewTimer);
-      editPreviewTimer = setTimeout(() => {
-        els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
-        updateStatusChips();
-        updateOutline();
-      }, EDIT_PREVIEW_DEBOUNCE_MS);
-    });
+    editHandle = createMarkdownEditor(
+      els.editorPane,
+      initial,
+      (text) => {
+        tab.editBuffer = text;
+        markDirty(tab);
+        if (editPreviewTimer) clearTimeout(editPreviewTimer);
+        editPreviewTimer = setTimeout(() => {
+          els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
+          updateStatusChips();
+          updateOutline();
+        }, EDIT_PREVIEW_DEBOUNCE_MS);
+      },
+      syncPreviewScrollToLine,
+    );
     editHandle.focus();
     els.editPreview.scrollTop = tab.scrollTop;
   } else {
@@ -270,6 +346,20 @@ function updateStatusChips(): void {
     els.statusEncoding.textContent = ENCODING_LABELS[tab.encoding];
     els.statusLineEnding.textContent = tab.lineEnding;
   }
+}
+
+function scrollToLine(container: HTMLElement, line: number): void {
+  const candidates = container.querySelectorAll<HTMLElement>("[data-line]");
+  let best: HTMLElement | null = null;
+  for (const el of candidates) {
+    if (Number(el.dataset.line) > line) break;
+    best = el;
+  }
+  best?.scrollIntoView({ block: "start" });
+}
+
+function syncPreviewScrollToLine(line: number): void {
+  scrollToLine(els.editPreview, line);
 }
 
 function scrollToSlug(slug: string): void {
@@ -716,6 +806,21 @@ initSettingsPanel(settings, {
   onAutoReloadChange: () => {
     for (const tab of tabs) void watchTab(tab);
   },
+});
+
+els.sidebarSearchToggle.addEventListener("click", () => {
+  const showingSearch = els.sidebarSearch.hidden;
+  els.sidebarSearch.hidden = !showingSearch;
+  els.fileTree.hidden = showingSearch;
+  if (showingSearch) {
+    els.sidebarSearchInput.focus();
+    renderSearchResults(els.sidebarSearchInput.value, []);
+  }
+});
+els.sidebarSearchInput.addEventListener("input", () => {
+  const query = els.sidebarSearchInput.value;
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS);
 });
 
 applyTranslations();

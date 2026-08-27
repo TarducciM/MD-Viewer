@@ -57,6 +57,10 @@ const it: Dict = {
   "status.wordcount": "{words} parole · ~{minutes} min",
   "outline.title": "INDICE",
   "outline.empty": "Nessun titolo in questo file.",
+  "sidebar.search.title": "Cerca nei file",
+  "sidebar.search.placeholder": "Cerca nei file…",
+  "sidebar.search.noResults": "Nessun risultato.",
+  "sidebar.search.typeToSearch": "Digita per cercare nei file del progetto.",
 };
 
 const en: Dict = {
@@ -114,6 +118,10 @@ const en: Dict = {
   "status.wordcount": "{words} words · ~{minutes} min read",
   "outline.title": "OUTLINE",
   "outline.empty": "No headings in this file.",
+  "sidebar.search.title": "Search files",
+  "sidebar.search.placeholder": "Search files…",
+  "sidebar.search.noResults": "No results.",
+  "sidebar.search.typeToSearch": "Type to search across project files.",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };
@@ -144,5 +152,8 @@ export function applyTranslations(root: ParentNode = document): void {
   });
   root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((el) => {
     el.title = t(el.dataset.i18nTitle!);
+  });
+  root.querySelectorAll<HTMLInputElement>("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder!);
   });
 }
