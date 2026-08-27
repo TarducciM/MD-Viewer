@@ -32,6 +32,13 @@ const it: Dict = {
   "settings.autoReload": "Aggiorna automaticamente se il file cambia",
   "settings.showHidden": "Mostra cartelle nascoste (.git, node_modules, …)",
   "settings.close": "Chiudi",
+  "toolbar.export.title": "Esporta",
+  "export.pdf": "PDF (stampa)",
+  "export.docx": "Word (.docx)",
+  "export.txt": "Testo semplice (.txt)",
+  "export.html": "HTML",
+  "status.encoding.title": "Codifica del file",
+  "status.lineEnding.title": "Fine riga",
 };
 
 const en: Dict = {
@@ -64,6 +71,13 @@ const en: Dict = {
   "settings.autoReload": "Auto-reload when the file changes on disk",
   "settings.showHidden": "Show hidden folders (.git, node_modules, …)",
   "settings.close": "Close",
+  "toolbar.export.title": "Export",
+  "export.pdf": "PDF (print)",
+  "export.docx": "Word (.docx)",
+  "export.txt": "Plain text (.txt)",
+  "export.html": "HTML",
+  "status.encoding.title": "File encoding",
+  "status.lineEnding.title": "Line ending",
 };
 
 const dictionaries: Record<Language, Dict> = { it, en };

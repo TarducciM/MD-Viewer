@@ -17,6 +17,9 @@ Un visualizzatore di file Markdown per desktop, con un tema scuro e uno chiaro i
 - Tema scuro, chiaro o a seguire il sistema operativo
 - Interfaccia in italiano o inglese
 - Modalità di modifica opzionale, side-by-side (editor + anteprima live), con `Ctrl+E` per attivarla e `Ctrl+S` per salvare
+- Toolbar di formattazione nell'editor (grassetto, link, tabelle, liste, ecc.) e autocompletamento parole italiano/inglese
+- Esportazione in PDF (stampa), Word (.docx), testo semplice (con le tabelle convertite in griglie ASCII) e HTML
+- Codifica del file (UTF-8, UTF-8 BOM, UTF-16 LE/BE) e fine riga (LF/CRLF) rilevati automaticamente e modificabili dalla status bar
 - Scorciatoie: `Ctrl+O` per aprire un file, `Ctrl+Shift+O` per aprire una cartella
 
 ### Stack
@@ -25,6 +28,7 @@ Un visualizzatore di file Markdown per desktop, con un tema scuro e uno chiaro i
 - TypeScript vanilla + [Vite](https://vitejs.dev/), nessun framework UI
 - [markdown-it](https://github.com/markdown-it/markdown-it) per il parsing e [highlight.js](https://highlightjs.org/) per la sintassi
 - [CodeMirror 6](https://codemirror.net/) per la modalità di modifica
+- [docx](https://github.com/dolanmiu/docx) per l'esportazione in Word
 - [Vitest](https://vitest.dev/) per i test
 
 ### Sviluppo
@@ -74,6 +78,9 @@ A desktop Markdown viewer with a dark and a light theme inspired by code editors
 - Dark, light, or system theme
 - Italian or English UI
 - Optional side-by-side edit mode (editor + live preview), `Ctrl+E` to toggle, `Ctrl+S` to save
+- Formatting toolbar in the editor (bold, links, tables, lists, …) and Italian/English word autocomplete
+- Export to PDF (print), Word (.docx), plain text (tables rendered as ASCII grids), and HTML
+- File encoding (UTF-8, UTF-8 BOM, UTF-16 LE/BE) and line ending (LF/CRLF) auto-detected and changeable from the status bar
 - Shortcuts: `Ctrl+O` to open a file, `Ctrl+Shift+O` to open a folder
 
 ### Stack
@@ -82,6 +89,7 @@ A desktop Markdown viewer with a dark and a light theme inspired by code editors
 - Vanilla TypeScript + [Vite](https://vitejs.dev/), no UI framework
 - [markdown-it](https://github.com/markdown-it/markdown-it) for parsing and [highlight.js](https://highlightjs.org/) for syntax highlighting
 - [CodeMirror 6](https://codemirror.net/) for the edit mode
+- [docx](https://github.com/dolanmiu/docx) for the Word export
 - [Vitest](https://vitest.dev/) for tests
 
 ### Development
