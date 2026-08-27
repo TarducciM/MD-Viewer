@@ -1,6 +1,7 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   readFile,
+  readDir,
   writeFile,
   writeTextFile,
   exists,
@@ -9,7 +10,9 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { basename, dirname, sep } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { renderMarkdown } from "./markdown";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { renderMarkdown, extractOutline, mermaidSources } from "./markdown";
+import { renderMermaidBlocks } from "./mermaidRender";
 import { buildTree, findFirstFile } from "./fileTree";
 import { renderTree, setActiveFile } from "./treeView";
 import { loadSettings, saveSettings, applySettings, type Settings, type ThemeMode } from "./settings";
@@ -28,6 +31,10 @@ import {
 } from "./encoding";
 import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "./export";
 import { markdownToDocxBlob } from "./docxExport";
+import { countWords } from "./wordcount";
+import { getRecents, addRecent } from "./recents";
+import { searchInFiles, type SearchResult } from "./search";
+import { checkForUpdate, installPendingUpdate } from "./updater";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -35,6 +42,7 @@ const MD_FILTER = [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "
 const RELOAD_DEBOUNCE_MS = 150;
 const EDIT_PREVIEW_DEBOUNCE_MS = 120;
 const REPO_URL = "https://github.com/TarducciM/MD-Viewer";
+const UPDATE_CHECK_DELAY_MS = 3000;
 
 type ExportFormat = "pdf" | "docx" | "txt" | "html";
 
@@ -56,6 +64,8 @@ interface Tab {
 const els = {
   menuFileBtn: document.querySelector<HTMLButtonElement>("#menu-file-btn")!,
   menuFile: document.querySelector<HTMLDivElement>("#menu-file")!,
+  menuRecentSection: document.querySelector<HTMLDivElement>("#menu-recent-section")!,
+  menuRecent: document.querySelector<HTMLDivElement>("#menu-recent")!,
   menuViewBtn: document.querySelector<HTMLButtonElement>("#menu-view-btn")!,
   menuView: document.querySelector<HTMLDivElement>("#menu-view")!,
   menuHelpBtn: document.querySelector<HTMLButtonElement>("#menu-help-btn")!,
@@ -83,10 +93,21 @@ const els = {
   settingsBtn: document.querySelector<HTMLButtonElement>("#settings-btn")!,
   exportBtn: document.querySelector<HTMLButtonElement>("#export-btn")!,
   exportMenu: document.querySelector<HTMLDivElement>("#export-menu")!,
+  statusWordcount: document.querySelector<HTMLSpanElement>("#status-wordcount")!,
   statusEncoding: document.querySelector<HTMLButtonElement>("#status-encoding")!,
   statusLineEnding: document.querySelector<HTMLButtonElement>("#status-line-ending")!,
   encodingMenu: document.querySelector<HTMLDivElement>("#encoding-menu")!,
   lineEndingMenu: document.querySelector<HTMLDivElement>("#line-ending-menu")!,
+  outlinePanel: document.querySelector<HTMLDivElement>("#outline-panel")!,
+  outlineList: document.querySelector<HTMLDivElement>("#outline-list")!,
+  sidebarSearchToggle: document.querySelector<HTMLButtonElement>("#sidebar-search-toggle")!,
+  sidebarSearch: document.querySelector<HTMLDivElement>("#sidebar-search")!,
+  sidebarSearchInput: document.querySelector<HTMLInputElement>("#sidebar-search-input")!,
+  sidebarSearchResults: document.querySelector<HTMLDivElement>("#sidebar-search-results")!,
+  updateBanner: document.querySelector<HTMLDivElement>("#update-banner")!,
+  updateBannerText: document.querySelector<HTMLSpanElement>("#update-banner-text")!,
+  updateBannerAction: document.querySelector<HTMLButtonElement>("#update-banner-action")!,
+  updateBannerDismiss: document.querySelector<HTMLButtonElement>("#update-banner-dismiss")!,
 };
 
 const settings: Settings = loadSettings();
@@ -176,6 +197,89 @@ function renderTabBar(): void {
   }
 }
 
+function renderRecentMenu(): void {
+  const recents = getRecents();
+  els.menuRecentSection.hidden = recents.length === 0;
+  els.menuRecent.innerHTML = "";
+  for (const entry of recents) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = entry.label;
+    btn.title = entry.path;
+    btn.addEventListener("click", () => {
+      if (entry.isFolder) void loadFolder(entry.path);
+      else void openTabForFile(entry.path);
+    });
+    els.menuRecent.appendChild(btn);
+  }
+}
+
+// --- Sidebar search ----------------------------------------------------
+
+const SEARCH_DEBOUNCE_MS = 200;
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function readFileTextForSearch(path: string): Promise<string | null> {
+  const openTab = findTab(path);
+  if (openTab) return openTab.isEditing ? (openTab.editBuffer ?? openTab.text) : openTab.text;
+  try {
+    const bytes = await readFile(path);
+    return decodeBytes(bytes, detectEncoding(bytes));
+  } catch {
+    return null;
+  }
+}
+
+function renderSearchResults(query: string, results: SearchResult[]): void {
+  els.sidebarSearchResults.innerHTML = "";
+  if (!query.trim()) {
+    const hint = document.createElement("div");
+    hint.className = "search-empty";
+    hint.textContent = t("sidebar.search.typeToSearch");
+    els.sidebarSearchResults.appendChild(hint);
+    return;
+  }
+  if (results.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "search-empty";
+    empty.textContent = t("sidebar.search.noResults");
+    els.sidebarSearchResults.appendChild(empty);
+    return;
+  }
+  for (const result of results) {
+    const fileLabel = document.createElement("div");
+    fileLabel.className = "search-result-file";
+    fileLabel.textContent = result.path.split(/[\\/]/).pop() ?? result.path;
+    fileLabel.title = result.path;
+    els.sidebarSearchResults.appendChild(fileLabel);
+    for (const match of result.matches) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "search-result-match";
+      btn.textContent = match.text || "…";
+      btn.addEventListener("click", () => void openSearchResult(result.path, match.line));
+      els.sidebarSearchResults.appendChild(btn);
+    }
+  }
+}
+
+async function openSearchResult(path: string, line: number): Promise<void> {
+  await openTabForFile(path);
+  const tab = activeTab();
+  if (!tab) return;
+  scrollToLine(tab.isEditing ? els.editPreview : els.preview, line);
+}
+
+async function runSearch(query: string): Promise<void> {
+  if (!currentRoot) {
+    renderSearchResults(query, []);
+    return;
+  }
+  const rootName = await basename(currentRoot);
+  const results = await searchInFiles(currentRoot, rootName, query, settings.showHidden, readFileTextForSearch);
+  renderSearchResults(query, results);
+}
+
 // --- Per-tab state helpers -------------------------------------------------
 
 function markDirty(tab: Tab): void {
@@ -200,20 +304,30 @@ function showTabContent(tab: Tab): void {
     els.editLayout.hidden = false;
     const initial = tab.editBuffer ?? tab.text;
     els.editPreview.innerHTML = renderMarkdown(initial, tab.baseDir);
-    editHandle = createMarkdownEditor(els.editorPane, initial, (text) => {
-      tab.editBuffer = text;
-      markDirty(tab);
-      if (editPreviewTimer) clearTimeout(editPreviewTimer);
-      editPreviewTimer = setTimeout(() => {
-        els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
-      }, EDIT_PREVIEW_DEBOUNCE_MS);
-    });
+    void renderMermaidBlocks(els.editPreview, mermaidSources);
+    editHandle = createMarkdownEditor(
+      els.editorPane,
+      initial,
+      (text) => {
+        tab.editBuffer = text;
+        markDirty(tab);
+        if (editPreviewTimer) clearTimeout(editPreviewTimer);
+        editPreviewTimer = setTimeout(() => {
+          els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
+          void renderMermaidBlocks(els.editPreview, mermaidSources);
+          updateStatusChips();
+          updateOutline();
+        }, EDIT_PREVIEW_DEBOUNCE_MS);
+      },
+      syncPreviewScrollToLine,
+    );
     editHandle.focus();
     els.editPreview.scrollTop = tab.scrollTop;
   } else {
     els.editLayout.hidden = true;
     els.preview.hidden = false;
     els.preview.innerHTML = renderMarkdown(tab.text, tab.baseDir);
+    void renderMermaidBlocks(els.preview, mermaidSources);
     els.preview.scrollTop = tab.scrollTop;
   }
 }
@@ -229,11 +343,61 @@ function updateEditUiState(): void {
 
 function updateStatusChips(): void {
   const tab = activeTab();
+  els.statusWordcount.hidden = !tab;
   els.statusEncoding.hidden = !tab;
   els.statusLineEnding.hidden = !tab;
   if (tab) {
+    const sourceText = tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text;
+    const wc = countWords(sourceText);
+    els.statusWordcount.textContent = t("status.wordcount", {
+      words: String(wc.words),
+      minutes: String(wc.minutes),
+    });
     els.statusEncoding.textContent = ENCODING_LABELS[tab.encoding];
     els.statusLineEnding.textContent = tab.lineEnding;
+  }
+}
+
+function scrollToLine(container: HTMLElement, line: number): void {
+  const candidates = container.querySelectorAll<HTMLElement>("[data-line]");
+  let best: HTMLElement | null = null;
+  for (const el of candidates) {
+    if (Number(el.dataset.line) > line) break;
+    best = el;
+  }
+  best?.scrollIntoView({ block: "start" });
+}
+
+function syncPreviewScrollToLine(line: number): void {
+  scrollToLine(els.editPreview, line);
+}
+
+function scrollToSlug(slug: string): void {
+  const tab = activeTab();
+  const container = tab?.isEditing ? els.editPreview : els.preview;
+  container.querySelector(`[id="${slug}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function updateOutline(): void {
+  const tab = activeTab();
+  const sourceText = tab ? (tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text) : "";
+  const entries = tab ? extractOutline(sourceText) : [];
+  els.outlineList.innerHTML = "";
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "outline-empty";
+    empty.textContent = t("outline.empty");
+    els.outlineList.appendChild(empty);
+    return;
+  }
+  for (const entry of entries) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "outline-item";
+    btn.textContent = entry.text;
+    btn.style.paddingLeft = `${12 + (entry.level - 1) * 12}px`;
+    btn.addEventListener("click", () => scrollToSlug(entry.slug));
+    els.outlineList.appendChild(btn);
   }
 }
 
@@ -264,8 +428,10 @@ async function reloadTab(tab: Tab): Promise<void> {
     if (activeTabPath === tab.filePath) {
       const scrollTop = els.preview.scrollTop;
       els.preview.innerHTML = renderMarkdown(text, tab.baseDir);
+      void renderMermaidBlocks(els.preview, mermaidSources);
       els.preview.scrollTop = scrollTop;
       updateStatusChips();
+      updateOutline();
     }
   } catch {
     // The file may have been removed or is mid-write; keep showing the last good render.
@@ -276,6 +442,7 @@ async function openTabForFile(filePath: string): Promise<void> {
   const existing = findTab(filePath);
   if (existing) {
     await activateTab(filePath);
+    addRecent(filePath, false);
     return;
   }
   try {
@@ -300,6 +467,7 @@ async function openTabForFile(filePath: string): Promise<void> {
     tabs.push(tab);
     await watchTab(tab);
     await activateTab(filePath);
+    addRecent(filePath, false);
   } catch (err) {
     els.statusLeft.textContent = t("status.openError", { error: String(err) });
   }
@@ -322,6 +490,7 @@ async function activateTab(filePath: string): Promise<void> {
   showTabContent(next);
   renderTabBar();
   updateStatusChips();
+  updateOutline();
   updateEditUiState();
 }
 
@@ -437,9 +606,40 @@ async function openFile(): Promise<void> {
   }
 }
 
+async function handleDroppedPaths(paths: string[]): Promise<void> {
+  for (const path of paths) {
+    let isDirectory = true;
+    try {
+      await readDir(path);
+    } catch {
+      isDirectory = false;
+    }
+    if (isDirectory) {
+      await loadFolder(path);
+    } else if (MD_FILTER[0].extensions.some((ext) => path.toLowerCase().endsWith(`.${ext}`))) {
+      await openTabForFile(path);
+    }
+  }
+}
+
+function setupDragDrop(): void {
+  void getCurrentWebview().onDragDropEvent((event) => {
+    const kind = event.payload.type;
+    if (kind === "drop") {
+      document.documentElement.classList.remove("drag-over");
+      void handleDroppedPaths(event.payload.paths);
+    } else if (kind === "enter" || kind === "over") {
+      document.documentElement.classList.add("drag-over");
+    } else {
+      document.documentElement.classList.remove("drag-over");
+    }
+  });
+}
+
 async function loadFolder(rootPath: string, initialFile?: string): Promise<void> {
   currentRoot = rootPath;
   localStorage.setItem(LAST_ROOT_KEY, rootPath);
+  addRecent(rootPath, true);
   const rootName = await basename(rootPath);
   els.sidebarTitle.textContent = rootName.toUpperCase();
   els.statusLeft.textContent = t("status.scanning");
@@ -473,6 +673,7 @@ function showEmptyState(): void {
   renderTabBar();
   updateEditUiState();
   updateStatusChips();
+  updateOutline();
 }
 
 async function restoreLastSession(): Promise<void> {
@@ -484,6 +685,24 @@ async function restoreLastSession(): Promise<void> {
   const lastFile = localStorage.getItem(LAST_FILE_KEY);
   const fileStillValid = lastFile && (await exists(lastFile));
   await loadFolder(lastRoot, fileStillValid ? lastFile! : undefined);
+}
+
+// --- Updates -------------------------------------------------------------
+
+function showUpdateBanner(message: string, showAction: boolean): void {
+  els.updateBannerText.textContent = message;
+  els.updateBannerAction.hidden = !showAction;
+  els.updateBannerAction.disabled = false;
+  els.updateBanner.hidden = false;
+}
+
+async function runUpdateCheck(manual: boolean): Promise<void> {
+  const result = await checkForUpdate();
+  if (result.available) {
+    showUpdateBanner(t("updater.available", { version: result.version! }), true);
+  } else if (manual) {
+    showUpdateBanner(t("updater.upToDate"), false);
+  }
 }
 
 // --- Event wiring ----------------------------------------------------------
@@ -527,6 +746,7 @@ els.lineEndingMenu.addEventListener("click", (e) => {
   if (tab.isEditing) markDirty(tab);
 });
 
+els.menuFileBtn.addEventListener("click", renderRecentMenu);
 setupDropdown(els.menuFileBtn, els.menuFile);
 els.menuFile.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
@@ -569,6 +789,9 @@ els.menuView.addEventListener("click", (e) => {
     case "toggle-sidebar":
       els.body.classList.toggle("sidebar-hidden");
       break;
+    case "toggle-outline":
+      els.outlinePanel.hidden = !els.outlinePanel.hidden;
+      break;
     case "open-settings":
       els.settingsBtn.click();
       break;
@@ -579,6 +802,25 @@ setupDropdown(els.menuHelpBtn, els.menuHelp);
 els.menuHelp.addEventListener("click", (e) => {
   const actionBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
   if (actionBtn?.dataset.action === "open-repo") void openUrl(REPO_URL);
+  else if (actionBtn?.dataset.action === "check-update") void runUpdateCheck(true);
+});
+
+els.updateBannerDismiss.addEventListener("click", () => {
+  els.updateBanner.hidden = true;
+});
+els.updateBannerAction.addEventListener("click", () => {
+  els.updateBannerAction.disabled = true;
+  els.updateBannerText.textContent = t("updater.downloading");
+  installPendingUpdate((downloaded, total) => {
+    if (total > 0) {
+      els.updateBannerText.textContent = t("updater.downloadingProgress", {
+        percent: String(Math.round((downloaded / total) * 100)),
+      });
+    }
+  }).catch((err) => {
+    els.updateBannerText.textContent = t("updater.error", { error: String(err) });
+    els.updateBannerAction.disabled = false;
+  });
 });
 
 window.addEventListener("keydown", (e) => {
@@ -614,7 +856,24 @@ initSettingsPanel(settings, {
   },
 });
 
+els.sidebarSearchToggle.addEventListener("click", () => {
+  const showingSearch = els.sidebarSearch.hidden;
+  els.sidebarSearch.hidden = !showingSearch;
+  els.fileTree.hidden = showingSearch;
+  if (showingSearch) {
+    els.sidebarSearchInput.focus();
+    renderSearchResults(els.sidebarSearchInput.value, []);
+  }
+});
+els.sidebarSearchInput.addEventListener("input", () => {
+  const query = els.sidebarSearchInput.value;
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS);
+});
+
 applyTranslations();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
+setupDragDrop();
 void restoreLastSession();
+setTimeout(() => void runUpdateCheck(false), UPDATE_CHECK_DELAY_MS);

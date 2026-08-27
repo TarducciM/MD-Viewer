@@ -233,10 +233,13 @@ export interface MarkdownEditorHandle {
   destroy(): void;
 }
 
+const SYNC_SCROLL_DEBOUNCE_MS = 50;
+
 export function createMarkdownEditor(
   container: HTMLElement,
   initialText: string,
   onChange: (text: string) => void,
+  onScroll?: (topLine: number) => void,
 ): MarkdownEditorHandle {
   const view = new EditorView({
     state: EditorState.create({
@@ -262,6 +265,18 @@ export function createMarkdownEditor(
     parent: container,
   });
 
+  let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+  const handleScroll = onScroll
+    ? () => {
+        if (scrollTimer) clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+          const topPos = view.lineBlockAtHeight(view.scrollDOM.scrollTop).from;
+          onScroll(view.state.doc.lineAt(topPos).number - 1);
+        }, SYNC_SCROLL_DEBOUNCE_MS);
+      }
+    : null;
+  if (handleScroll) view.scrollDOM.addEventListener("scroll", handleScroll);
+
   return {
     getValue: () => view.state.doc.toString(),
     setValue: (text: string) => {
@@ -269,6 +284,10 @@ export function createMarkdownEditor(
     },
     focus: () => view.focus(),
     format: (action: FormatAction) => applyFormat(view, action),
-    destroy: () => view.destroy(),
+    destroy: () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
+      if (handleScroll) view.scrollDOM.removeEventListener("scroll", handleScroll);
+      view.destroy();
+    },
   };
 }
