@@ -35,9 +35,6 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-view-btn" data-i18n="menu.view">Visualizza</button>
           <div id="menu-view" class="dropdown-menu dropdown-menu-left" hidden>
-            <button type="button" data-action="toggle-sidebar" data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</button>
-            <button type="button" data-action="toggle-outline" data-i18n="menu.toggleOutline">Mostra/nascondi indice</button>
-            <div class="menu-sep"></div>
             <div class="menu-label" data-i18n="menu.theme">Tema</div>
             <button type="button" data-theme-choice="dark" data-i18n="settings.theme.dark">Scuro</button>
             <button type="button" data-theme-choice="light" data-i18n="settings.theme.light">Chiaro</button>
@@ -47,8 +44,31 @@
           </div>
         </div>
         <div class="dropdown">
+          <button type="button" class="menu-btn" id="menu-window-btn" data-i18n="menu.window">Finestra</button>
+          <div id="menu-window" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="toggle-sidebar" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</span>
+            </button>
+            <button type="button" data-action="toggle-outline" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleOutline">Mostra/nascondi indice</span>
+            </button>
+            <button type="button" data-action="toggle-git" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleGit">Mostra/nascondi Git</span>
+            </button>
+            <div class="menu-sep"></div>
+            <button type="button" data-action="toggle-panel-side" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.panelSide">Pannelli a sinistra</span>
+            </button>
+            <div class="menu-sep"></div>
+            <button type="button" data-action="toggle-zen" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleZen">Modalità zen</span>
+            </button>
+          </div>
+        </div>
+        <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-help-btn" data-i18n="menu.help">Aiuto</button>
           <div id="menu-help" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="open-palette" data-i18n="menu.commandPalette">Palette comandi… (Ctrl+Shift+P)</button>
             <button type="button" data-action="check-update" data-i18n="menu.checkUpdate">Controlla aggiornamenti</button>
             <button type="button" data-action="open-repo" data-i18n="menu.repo">Repository su GitHub</button>
           </div>
@@ -164,6 +184,15 @@
           <div id="outline-header"><span data-i18n="outline.title">INDICE</span></div>
           <div id="outline-list"></div>
         </aside>
+        <aside id="git-panel" hidden>
+          <div id="git-header">
+            <span id="git-branch"></span>
+            <button type="button" id="git-refresh-btn" class="icon-btn" data-i18n-title="git.refresh" aria-label="Refresh">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3.5H10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div id="git-list"></div>
+        </aside>
       </div>
 
       <footer id="statusbar">
@@ -188,6 +217,13 @@
           </div>
         </div>
       </footer>
+
+      <div id="command-palette-overlay" hidden>
+        <div id="command-palette" role="dialog" aria-modal="true">
+          <input type="text" id="command-palette-input" data-i18n-placeholder="palette.placeholder" placeholder="Digita un comando…" />
+          <div id="command-palette-list"></div>
+        </div>
+      </div>
 
       <div id="settings-overlay" hidden>
         <div id="settings-panel" role="dialog" aria-modal="true">

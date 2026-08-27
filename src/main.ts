@@ -8,12 +8,12 @@ import {
   watchImmediate,
   type UnwatchFn,
 } from "@tauri-apps/plugin-fs";
-import { basename, dirname, sep } from "@tauri-apps/api/path";
+import { basename, dirname, sep, join } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { renderMarkdown, extractOutline, mermaidSources } from "./markdown";
 import { renderMermaidBlocks } from "./mermaidRender";
-import { buildTree, findFirstFile } from "./fileTree";
+import { buildTree, findFirstFile, type TreeNode } from "./fileTree";
 import { renderTree, setActiveFile } from "./treeView";
 import { loadSettings, saveSettings, applySettings, type Settings, type ThemeMode } from "./settings";
 import { setLanguage, applyTranslations, t } from "./i18n";
@@ -33,8 +33,10 @@ import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "
 import { markdownToDocxBlob } from "./docxExport";
 import { countWords } from "./wordcount";
 import { getRecents, addRecent } from "./recents";
-import { searchInFiles, type SearchResult } from "./search";
+import { searchInFiles, flattenFiles, type SearchResult } from "./search";
 import { checkForUpdate, installPendingUpdate } from "./updater";
+import { fuzzyFilter } from "./fuzzy";
+import { getGitStatus, type GitStatusResult, type GitFileStatusKind } from "./git";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -43,6 +45,12 @@ const RELOAD_DEBOUNCE_MS = 150;
 const EDIT_PREVIEW_DEBOUNCE_MS = 120;
 const REPO_URL = "https://github.com/TarducciM/MD-Viewer";
 const UPDATE_CHECK_DELAY_MS = 3000;
+const PASTED_IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
 
 type ExportFormat = "pdf" | "docx" | "txt" | "html";
 
@@ -68,12 +76,15 @@ const els = {
   menuRecent: document.querySelector<HTMLDivElement>("#menu-recent")!,
   menuViewBtn: document.querySelector<HTMLButtonElement>("#menu-view-btn")!,
   menuView: document.querySelector<HTMLDivElement>("#menu-view")!,
+  menuWindowBtn: document.querySelector<HTMLButtonElement>("#menu-window-btn")!,
+  menuWindow: document.querySelector<HTMLDivElement>("#menu-window")!,
   menuHelpBtn: document.querySelector<HTMLButtonElement>("#menu-help-btn")!,
   menuHelp: document.querySelector<HTMLDivElement>("#menu-help")!,
   openFolderBtn: document.querySelector<HTMLButtonElement>("#open-folder-btn")!,
   openFileBtn: document.querySelector<HTMLButtonElement>("#open-file-btn")!,
   emptyOpenFolderBtn: document.querySelector<HTMLButtonElement>("#empty-open-folder-btn")!,
   emptyOpenFileBtn: document.querySelector<HTMLButtonElement>("#empty-open-file-btn")!,
+  app: document.querySelector<HTMLDivElement>("#app")!,
   body: document.querySelector<HTMLDivElement>("#body")!,
   fileTree: document.querySelector<HTMLDivElement>("#file-tree")!,
   sidebarTitle: document.querySelector<HTMLSpanElement>("#sidebar-title")!,
@@ -108,6 +119,13 @@ const els = {
   updateBannerText: document.querySelector<HTMLSpanElement>("#update-banner-text")!,
   updateBannerAction: document.querySelector<HTMLButtonElement>("#update-banner-action")!,
   updateBannerDismiss: document.querySelector<HTMLButtonElement>("#update-banner-dismiss")!,
+  commandPaletteOverlay: document.querySelector<HTMLDivElement>("#command-palette-overlay")!,
+  commandPaletteInput: document.querySelector<HTMLInputElement>("#command-palette-input")!,
+  commandPaletteList: document.querySelector<HTMLDivElement>("#command-palette-list")!,
+  gitPanel: document.querySelector<HTMLDivElement>("#git-panel")!,
+  gitBranch: document.querySelector<HTMLSpanElement>("#git-branch")!,
+  gitList: document.querySelector<HTMLDivElement>("#git-list")!,
+  gitRefreshBtn: document.querySelector<HTMLButtonElement>("#git-refresh-btn")!,
 };
 
 const settings: Settings = loadSettings();
@@ -298,6 +316,18 @@ function captureTabViewState(tab: Tab): void {
   }
 }
 
+async function handleEditorImagePaste(tab: Tab, blob: Blob): Promise<string | null> {
+  const ext = PASTED_IMAGE_EXTENSIONS[blob.type] ?? "png";
+  const filename = `pasted-image-${Date.now()}.${ext}`;
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    await writeFile(await join(tab.baseDir, filename), bytes);
+    return `![](${filename})`;
+  } catch {
+    return null;
+  }
+}
+
 function showTabContent(tab: Tab): void {
   if (tab.isEditing) {
     els.preview.hidden = true;
@@ -305,6 +335,7 @@ function showTabContent(tab: Tab): void {
     const initial = tab.editBuffer ?? tab.text;
     els.editPreview.innerHTML = renderMarkdown(initial, tab.baseDir);
     void renderMermaidBlocks(els.editPreview, mermaidSources);
+    void markWikiLinks(els.editPreview);
     editHandle = createMarkdownEditor(
       els.editorPane,
       initial,
@@ -315,11 +346,13 @@ function showTabContent(tab: Tab): void {
         editPreviewTimer = setTimeout(() => {
           els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
           void renderMermaidBlocks(els.editPreview, mermaidSources);
+          void markWikiLinks(els.editPreview);
           updateStatusChips();
           updateOutline();
         }, EDIT_PREVIEW_DEBOUNCE_MS);
       },
       syncPreviewScrollToLine,
+      (blob) => handleEditorImagePaste(tab, blob),
     );
     editHandle.focus();
     els.editPreview.scrollTop = tab.scrollTop;
@@ -328,6 +361,7 @@ function showTabContent(tab: Tab): void {
     els.preview.hidden = false;
     els.preview.innerHTML = renderMarkdown(tab.text, tab.baseDir);
     void renderMermaidBlocks(els.preview, mermaidSources);
+    void markWikiLinks(els.preview);
     els.preview.scrollTop = tab.scrollTop;
   }
 }
@@ -401,6 +435,109 @@ function updateOutline(): void {
   }
 }
 
+// --- Wiki-links [[note]] --------------------------------------------------
+
+function resolveWikiLink(target: string, files: TreeNode[]): string | null {
+  const wanted = target.split("#")[0].trim().toLowerCase();
+  if (!wanted) return null;
+  return files.find((file) => file.name.replace(/\.[^.]+$/, "").toLowerCase() === wanted)?.path ?? null;
+}
+
+async function currentTreeFiles(): Promise<TreeNode[]> {
+  if (!currentRoot) return [];
+  const rootName = await basename(currentRoot);
+  const tree = await buildTree(currentRoot, rootName, settings.showHidden);
+  return flattenFiles(tree);
+}
+
+async function markWikiLinks(container: HTMLElement): Promise<void> {
+  const links = Array.from(container.querySelectorAll<HTMLAnchorElement>("a.wiki-link"));
+  if (links.length === 0) return;
+  const files = await currentTreeFiles();
+  for (const link of links) {
+    const found = resolveWikiLink(link.dataset.wikiTarget ?? "", files);
+    link.classList.toggle("wiki-link-missing", !found);
+  }
+}
+
+async function openWikiLink(target: string): Promise<void> {
+  const path = resolveWikiLink(target, await currentTreeFiles());
+  if (path) await openTabForFile(path);
+}
+
+// --- Git panel -------------------------------------------------------------
+
+const GIT_STATUS_BADGE: Record<GitFileStatusKind, string> = {
+  modified: "M",
+  added: "A",
+  deleted: "D",
+  untracked: "U",
+  renamed: "R",
+  other: "?",
+};
+const MD_PATH_RE = /\.(md|markdown|mdown|mkd)$/i;
+
+function renderGitPanel(result: GitStatusResult): void {
+  els.gitBranch.textContent = result.branch ? `⎇ ${result.branch}` : "";
+  els.gitList.innerHTML = "";
+
+  if (!result.isRepo) {
+    const empty = document.createElement("div");
+    empty.className = "git-empty";
+    empty.textContent = t("git.notRepo");
+    els.gitList.appendChild(empty);
+    return;
+  }
+  if (result.files.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "git-empty";
+    empty.textContent = t("git.noChanges");
+    els.gitList.appendChild(empty);
+    return;
+  }
+
+  for (const file of result.files) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "git-row";
+    row.title = file.path;
+
+    const badge = document.createElement("span");
+    badge.className = `git-status-badge git-status-${file.status}`;
+    badge.textContent = GIT_STATUS_BADGE[file.status];
+    row.appendChild(badge);
+
+    const pathEl = document.createElement("span");
+    pathEl.className = "git-row-path";
+    pathEl.textContent = file.path;
+    row.appendChild(pathEl);
+
+    if (MD_PATH_RE.test(file.path)) {
+      row.addEventListener("click", () => {
+        if (!currentRoot) return;
+        void join(currentRoot, file.path).then((fullPath) => openTabForFile(fullPath));
+      });
+    } else {
+      row.disabled = true;
+    }
+    els.gitList.appendChild(row);
+  }
+}
+
+async function refreshGitPanel(): Promise<void> {
+  if (!currentRoot) {
+    renderGitPanel({ isRepo: false, branch: null, files: [] });
+    return;
+  }
+  renderGitPanel(await getGitStatus(currentRoot));
+}
+
+function toggleGitPanel(): void {
+  const wasHidden = els.gitPanel.hidden;
+  els.gitPanel.hidden = !wasHidden;
+  if (wasHidden) void refreshGitPanel();
+}
+
 // --- Tab lifecycle -----------------------------------------------------
 
 async function watchTab(tab: Tab): Promise<void> {
@@ -429,6 +566,7 @@ async function reloadTab(tab: Tab): Promise<void> {
       const scrollTop = els.preview.scrollTop;
       els.preview.innerHTML = renderMarkdown(text, tab.baseDir);
       void renderMermaidBlocks(els.preview, mermaidSources);
+      void markWikiLinks(els.preview);
       els.preview.scrollTop = scrollTop;
       updateStatusChips();
       updateOutline();
@@ -552,6 +690,7 @@ async function saveActiveTab(): Promise<void> {
   tab.isDirty = false;
   renderTabBar();
   updateEditUiState();
+  if (!els.gitPanel.hidden) void refreshGitPanel();
 }
 
 async function exportAs(format: ExportFormat): Promise<void> {
@@ -653,6 +792,7 @@ async function loadFolder(rootPath: string, initialFile?: string): Promise<void>
   } else if (tabs.length === 0) {
     els.statusLeft.textContent = t("status.noMarkdown");
   }
+  if (!els.gitPanel.hidden) void refreshGitPanel();
 }
 
 async function buildBreadcrumb(filePath: string): Promise<string> {
@@ -703,6 +843,123 @@ async function runUpdateCheck(manual: boolean): Promise<void> {
   } else if (manual) {
     showUpdateBanner(t("updater.upToDate"), false);
   }
+}
+
+// --- Command palette -----------------------------------------------------
+
+interface PaletteCommand {
+  id: string;
+  label: string;
+  run: () => void;
+}
+
+function getCommands(): PaletteCommand[] {
+  return [
+    { id: "open-file", label: t("menu.openFile"), run: () => void openFile() },
+    { id: "open-folder", label: t("menu.openFolder"), run: () => void openFolder() },
+    { id: "save", label: t("menu.save"), run: () => void saveActiveTab() },
+    {
+      id: "close-tab",
+      label: t("menu.closeTab"),
+      run: () => {
+        if (activeTabPath) void closeTab(activeTabPath);
+      },
+    },
+    { id: "toggle-edit", label: t("palette.toggleEdit"), run: () => void toggleEditMode() },
+    { id: "export-pdf", label: t("export.pdf"), run: () => void exportAs("pdf") },
+    { id: "export-docx", label: t("export.docx"), run: () => void exportAs("docx") },
+    { id: "export-txt", label: t("export.txt"), run: () => void exportAs("txt") },
+    { id: "export-html", label: t("export.html"), run: () => void exportAs("html") },
+    { id: "toggle-sidebar", label: t("menu.toggleSidebar"), run: () => els.body.classList.toggle("sidebar-hidden") },
+    { id: "toggle-outline", label: t("menu.toggleOutline"), run: () => (els.outlinePanel.hidden = !els.outlinePanel.hidden) },
+    { id: "toggle-git", label: t("menu.toggleGit"), run: () => toggleGitPanel() },
+    { id: "toggle-panel-side", label: t("menu.panelSide"), run: () => els.body.classList.toggle("panels-left") },
+    { id: "toggle-zen", label: t("menu.toggleZen"), run: () => els.app.classList.toggle("zen-mode") },
+    {
+      id: "search-files",
+      label: t("palette.searchFiles"),
+      run: () => {
+        els.sidebarSearch.hidden = false;
+        els.fileTree.hidden = true;
+        els.sidebarSearchInput.focus();
+        renderSearchResults(els.sidebarSearchInput.value, []);
+      },
+    },
+    {
+      id: "theme-dark",
+      label: `${t("menu.theme")}: ${t("settings.theme.dark")}`,
+      run: () => {
+        settings.theme = "dark";
+        saveSettings(settings);
+        applySettings(settings);
+      },
+    },
+    {
+      id: "theme-light",
+      label: `${t("menu.theme")}: ${t("settings.theme.light")}`,
+      run: () => {
+        settings.theme = "light";
+        saveSettings(settings);
+        applySettings(settings);
+      },
+    },
+    {
+      id: "theme-system",
+      label: `${t("menu.theme")}: ${t("settings.theme.system")}`,
+      run: () => {
+        settings.theme = "system";
+        saveSettings(settings);
+        applySettings(settings);
+      },
+    },
+    { id: "settings", label: t("menu.settings"), run: () => els.settingsBtn.click() },
+    { id: "check-update", label: t("menu.checkUpdate"), run: () => void runUpdateCheck(true) },
+    { id: "open-repo", label: t("menu.repo"), run: () => void openUrl(REPO_URL) },
+  ];
+}
+
+let paletteMatches: PaletteCommand[] = [];
+let paletteActiveIndex = 0;
+
+function renderPaletteList(query: string): void {
+  paletteMatches = fuzzyFilter(query, getCommands(), (cmd) => cmd.label);
+  paletteActiveIndex = 0;
+  els.commandPaletteList.innerHTML = "";
+  if (paletteMatches.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "palette-empty";
+    empty.textContent = t("palette.noResults");
+    els.commandPaletteList.appendChild(empty);
+    return;
+  }
+  paletteMatches.forEach((cmd, index) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "palette-item" + (index === paletteActiveIndex ? " active" : "");
+    btn.textContent = cmd.label;
+    btn.addEventListener("click", () => {
+      closeCommandPalette();
+      cmd.run();
+    });
+    els.commandPaletteList.appendChild(btn);
+  });
+}
+
+function highlightPaletteActive(): void {
+  const items = els.commandPaletteList.querySelectorAll<HTMLElement>(".palette-item");
+  items.forEach((el, index) => el.classList.toggle("active", index === paletteActiveIndex));
+  items[paletteActiveIndex]?.scrollIntoView({ block: "nearest" });
+}
+
+function openCommandPalette(): void {
+  els.commandPaletteOverlay.hidden = false;
+  els.commandPaletteInput.value = "";
+  renderPaletteList("");
+  els.commandPaletteInput.focus();
+}
+
+function closeCommandPalette(): void {
+  els.commandPaletteOverlay.hidden = true;
 }
 
 // --- Event wiring ----------------------------------------------------------
@@ -785,6 +1042,28 @@ els.menuView.addEventListener("click", (e) => {
   }
   const actionBtn = target.closest<HTMLElement>("[data-action]");
   if (!actionBtn) return;
+  if (actionBtn.dataset.action === "open-settings") els.settingsBtn.click();
+});
+
+function renderWindowMenu(): void {
+  const checks: Record<string, boolean> = {
+    "toggle-sidebar": !els.body.classList.contains("sidebar-hidden"),
+    "toggle-outline": !els.outlinePanel.hidden,
+    "toggle-git": !els.gitPanel.hidden,
+    "toggle-panel-side": els.body.classList.contains("panels-left"),
+    "toggle-zen": els.app.classList.contains("zen-mode"),
+  };
+  els.menuWindow.querySelectorAll<HTMLElement>(".menu-toggle").forEach((btn) => {
+    const action = btn.dataset.action ?? "";
+    btn.classList.toggle("checked", !!checks[action]);
+  });
+}
+
+setupDropdown(els.menuWindowBtn, els.menuWindow);
+els.menuWindowBtn.addEventListener("click", renderWindowMenu);
+els.menuWindow.addEventListener("click", (e) => {
+  const actionBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+  if (!actionBtn) return;
   switch (actionBtn.dataset.action) {
     case "toggle-sidebar":
       els.body.classList.toggle("sidebar-hidden");
@@ -792,10 +1071,17 @@ els.menuView.addEventListener("click", (e) => {
     case "toggle-outline":
       els.outlinePanel.hidden = !els.outlinePanel.hidden;
       break;
-    case "open-settings":
-      els.settingsBtn.click();
+    case "toggle-git":
+      toggleGitPanel();
+      break;
+    case "toggle-panel-side":
+      els.body.classList.toggle("panels-left");
+      break;
+    case "toggle-zen":
+      els.app.classList.toggle("zen-mode");
       break;
   }
+  renderWindowMenu();
 });
 
 setupDropdown(els.menuHelpBtn, els.menuHelp);
@@ -803,6 +1089,7 @@ els.menuHelp.addEventListener("click", (e) => {
   const actionBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
   if (actionBtn?.dataset.action === "open-repo") void openUrl(REPO_URL);
   else if (actionBtn?.dataset.action === "check-update") void runUpdateCheck(true);
+  else if (actionBtn?.dataset.action === "open-palette") openCommandPalette();
 });
 
 els.updateBannerDismiss.addEventListener("click", () => {
@@ -840,6 +1127,47 @@ window.addEventListener("keydown", (e) => {
   } else if (key === "w") {
     e.preventDefault();
     if (activeTabPath) void closeTab(activeTabPath);
+  } else if (key === "p" && e.shiftKey) {
+    e.preventDefault();
+    openCommandPalette();
+  }
+});
+
+els.commandPaletteOverlay.addEventListener("click", (e) => {
+  if (e.target === els.commandPaletteOverlay) closeCommandPalette();
+});
+els.commandPaletteInput.addEventListener("input", () => {
+  renderPaletteList(els.commandPaletteInput.value);
+});
+els.commandPaletteInput.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeCommandPalette();
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (paletteMatches.length > 0) {
+      paletteActiveIndex = (paletteActiveIndex + 1) % paletteMatches.length;
+      highlightPaletteActive();
+    }
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (paletteMatches.length > 0) {
+      paletteActiveIndex = (paletteActiveIndex - 1 + paletteMatches.length) % paletteMatches.length;
+      highlightPaletteActive();
+    }
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const cmd = paletteMatches[paletteActiveIndex];
+    if (cmd) {
+      closeCommandPalette();
+      cmd.run();
+    }
+  }
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && els.app.classList.contains("zen-mode")) {
+    els.app.classList.remove("zen-mode");
   }
 });
 
@@ -870,6 +1198,16 @@ els.sidebarSearchInput.addEventListener("input", () => {
   if (searchTimer) clearTimeout(searchTimer);
   searchTimer = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS);
 });
+
+function handleWikiLinkClick(e: MouseEvent): void {
+  const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.wiki-link");
+  if (!link) return;
+  e.preventDefault();
+  void openWikiLink(link.dataset.wikiTarget ?? "");
+}
+els.preview.addEventListener("click", handleWikiLinkClick);
+els.editPreview.addEventListener("click", handleWikiLinkClick);
+els.gitRefreshBtn.addEventListener("click", () => void refreshGitPanel());
 
 applyTranslations();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);

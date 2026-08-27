@@ -10,6 +10,23 @@
     "updater:default",
     "process:default",
     {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "git-status",
+          "cmd": "git",
+          "args": ["-C", { "validator": "^.*$" }, "status", "--porcelain=v1", "-z"],
+          "sidecar": false
+        },
+        {
+          "name": "git-branch",
+          "cmd": "git",
+          "args": ["-C", { "validator": "^.*$" }, "branch", "--show-current"],
+          "sidecar": false
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-read-dir",
       "allow": [{ "path": "**" }]
     },

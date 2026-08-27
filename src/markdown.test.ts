@@ -143,6 +143,60 @@ describe("mermaid code blocks", () => {
   });
 });
 
+describe("wiki-links", () => {
+  it("renders [[target]] as a wiki-link anchor", () => {
+    const html = renderMarkdown("See [[My Note]] for details.", "C:\\docs");
+    expect(html).toContain('class="wiki-link"');
+    expect(html).toContain('data-wiki-target="My Note"');
+    expect(html).toContain(">My Note</a>");
+  });
+
+  it("uses the part after | as the display label", () => {
+    const html = renderMarkdown("See [[my-note|a note]] for details.", "C:\\docs");
+    expect(html).toContain('data-wiki-target="my-note"');
+    expect(html).toContain(">a note</a>");
+  });
+
+  it("leaves an unclosed [[ untouched", () => {
+    const html = renderMarkdown("This is [[ not closed", "C:\\docs");
+    expect(html).not.toContain("wiki-link");
+  });
+
+  it("does not treat an empty [[]] as a link", () => {
+    const html = renderMarkdown("Empty [[]] brackets.", "C:\\docs");
+    expect(html).not.toContain("wiki-link");
+  });
+
+  it("does not touch wiki-link-looking text inside inline code", () => {
+    const html = renderMarkdown("Use `[[literal]]` in text.", "C:\\docs");
+    expect(html).not.toContain("wiki-link");
+    expect(html).toContain("[[literal]]");
+  });
+});
+
+describe("frontmatter", () => {
+  it("renders a card for the frontmatter block instead of raw text", () => {
+    const html = renderMarkdown("---\ntitle: My Note\ntags: [a, b]\n---\n\n# Body", "C:\\docs");
+    expect(html).toContain('class="frontmatter-card"');
+    expect(html).toContain(">title<");
+    expect(html).toContain(">My Note<");
+    expect(html).toContain('class="frontmatter-tag">a<');
+    expect(html).toContain('class="frontmatter-tag">b<');
+    expect(html).not.toContain("title: My Note");
+  });
+
+  it("keeps data-line numbers aligned to the original source after the frontmatter block", () => {
+    const html = renderMarkdown("---\ntitle: x\n---\n\n# Body", "C:\\docs");
+    expect(html).toContain('data-line="4"');
+  });
+
+  it("renders normally when there is no frontmatter block", () => {
+    const html = renderMarkdown("# Body", "C:\\docs");
+    expect(html).not.toContain("frontmatter-card");
+    expect(html).toContain('data-line="0"');
+  });
+});
+
 describe("extractOutline", () => {
   it("extracts headings in order with their level and slug", () => {
     const outline = extractOutline("# Title\n\n## Sub one\n\nText\n\n## Sub two");
@@ -160,5 +214,10 @@ describe("extractOutline", () => {
   it("dedups slugs the same way renderMarkdown does", () => {
     const outline = extractOutline("# Title\n\n# Title");
     expect(outline.map((entry) => entry.slug)).toEqual(["title", "title-1"]);
+  });
+
+  it("ignores a leading frontmatter block and does not mistake it for a heading", () => {
+    const outline = extractOutline("---\ntitle: Not A Heading\n---\n\n# Real Heading");
+    expect(outline).toEqual([{ level: 1, text: "Real Heading", slug: "real-heading" }]);
   });
 });
