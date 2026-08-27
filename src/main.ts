@@ -11,7 +11,8 @@ import {
 import { basename, dirname, sep } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { renderMarkdown, extractOutline } from "./markdown";
+import { renderMarkdown, extractOutline, mermaidSources } from "./markdown";
+import { renderMermaidBlocks } from "./mermaidRender";
 import { buildTree, findFirstFile } from "./fileTree";
 import { renderTree, setActiveFile } from "./treeView";
 import { loadSettings, saveSettings, applySettings, type Settings, type ThemeMode } from "./settings";
@@ -297,6 +298,7 @@ function showTabContent(tab: Tab): void {
     els.editLayout.hidden = false;
     const initial = tab.editBuffer ?? tab.text;
     els.editPreview.innerHTML = renderMarkdown(initial, tab.baseDir);
+    void renderMermaidBlocks(els.editPreview, mermaidSources);
     editHandle = createMarkdownEditor(
       els.editorPane,
       initial,
@@ -306,6 +308,7 @@ function showTabContent(tab: Tab): void {
         if (editPreviewTimer) clearTimeout(editPreviewTimer);
         editPreviewTimer = setTimeout(() => {
           els.editPreview.innerHTML = renderMarkdown(text, tab.baseDir);
+          void renderMermaidBlocks(els.editPreview, mermaidSources);
           updateStatusChips();
           updateOutline();
         }, EDIT_PREVIEW_DEBOUNCE_MS);
@@ -318,6 +321,7 @@ function showTabContent(tab: Tab): void {
     els.editLayout.hidden = true;
     els.preview.hidden = false;
     els.preview.innerHTML = renderMarkdown(tab.text, tab.baseDir);
+    void renderMermaidBlocks(els.preview, mermaidSources);
     els.preview.scrollTop = tab.scrollTop;
   }
 }
@@ -418,6 +422,7 @@ async function reloadTab(tab: Tab): Promise<void> {
     if (activeTabPath === tab.filePath) {
       const scrollTop = els.preview.scrollTop;
       els.preview.innerHTML = renderMarkdown(text, tab.baseDir);
+      void renderMermaidBlocks(els.preview, mermaidSources);
       els.preview.scrollTop = scrollTop;
       updateStatusChips();
       updateOutline();
