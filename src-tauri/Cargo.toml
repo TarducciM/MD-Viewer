@@ -1,6 +1,6 @@
 [package]
 name = "tauri-app"
-version = "0.1.1"
+version = "0.1.2"
 description = "A desktop Markdown viewer with an IDE-inspired dark/light theme"
 authors = ["Michele Tarducci"]
 license = "MIT"
