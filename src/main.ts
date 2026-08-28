@@ -116,6 +116,7 @@ const els = {
   encodingMenu: document.querySelector<HTMLDivElement>("#encoding-menu")!,
   lineEndingMenu: document.querySelector<HTMLDivElement>("#line-ending-menu")!,
   outlinePanel: document.querySelector<HTMLDivElement>("#outline-panel")!,
+  outlineHeader: document.querySelector<HTMLDivElement>("#outline-header")!,
   outlineList: document.querySelector<HTMLDivElement>("#outline-list")!,
   sidebarSearchToggle: document.querySelector<HTMLButtonElement>("#sidebar-search-toggle")!,
   sidebarSearch: document.querySelector<HTMLDivElement>("#sidebar-search")!,
@@ -129,9 +130,14 @@ const els = {
   commandPaletteInput: document.querySelector<HTMLInputElement>("#command-palette-input")!,
   commandPaletteList: document.querySelector<HTMLDivElement>("#command-palette-list")!,
   gitPanel: document.querySelector<HTMLDivElement>("#git-panel")!,
+  gitHeader: document.querySelector<HTMLDivElement>("#git-header")!,
   gitBranch: document.querySelector<HTMLSpanElement>("#git-branch")!,
   gitList: document.querySelector<HTMLDivElement>("#git-list")!,
   gitRefreshBtn: document.querySelector<HTMLButtonElement>("#git-refresh-btn")!,
+  bodyRow: document.querySelector<HTMLDivElement>("#body-row")!,
+  bodyBottom: document.querySelector<HTMLDivElement>("#body-bottom")!,
+  bodyBottomResizer: document.querySelector<HTMLDivElement>("#body-bottom-resizer")!,
+  dockZoneIndicator: document.querySelector<HTMLDivElement>("#dock-zone-indicator")!,
   contentColumnSecondary: document.querySelector<HTMLDivElement>("#content-column-secondary")!,
   splitResizer: document.querySelector<HTMLDivElement>("#split-resizer")!,
   splitTabSelect: document.querySelector<HTMLSelectElement>("#split-tab-select")!,
@@ -157,6 +163,23 @@ function findTab(path: string): Tab | undefined {
 }
 function activeTab(): Tab | undefined {
   return activeTabPath ? findTab(activeTabPath) : undefined;
+}
+
+function setupVerticalResizer(handleEl: HTMLElement, targetEl: HTMLElement): void {
+  handleEl.addEventListener("mousedown", (downEvent) => {
+    const startY = downEvent.clientY;
+    const startHeight = targetEl.getBoundingClientRect().height;
+    const onMove = (e: MouseEvent) => {
+      const height = Math.min(window.innerHeight * 0.6, Math.max(120, startHeight - (e.clientY - startY)));
+      targetEl.style.height = `${height}px`;
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
 }
 
 function setupResizer(handleEl: HTMLElement, targetEl: HTMLElement, growOnRight = true): void {
@@ -554,6 +577,94 @@ function toggleGitPanel(): void {
   const wasHidden = els.gitPanel.hidden;
   els.gitPanel.hidden = !wasHidden;
   if (wasHidden) void refreshGitPanel();
+  updateBodyBottomVisibility();
+}
+
+function toggleOutlinePanel(): void {
+  els.outlinePanel.hidden = !els.outlinePanel.hidden;
+  updateBodyBottomVisibility();
+}
+
+// --- Dockable side panels ------------------------------------------------
+
+type DockPosition = "left" | "right" | "bottom";
+
+function updateBodyBottomVisibility(): void {
+  const hasVisibleChild = Array.from(els.bodyBottom.children).some((el) => !(el as HTMLElement).hidden);
+  els.bodyBottom.hidden = !hasVisibleChild;
+  els.bodyBottomResizer.hidden = !hasVisibleChild;
+}
+
+function setPanelDock(panel: HTMLElement, position: DockPosition): void {
+  panel.classList.remove("docked-left", "docked-bottom");
+  if (position === "bottom") {
+    panel.classList.add("docked-bottom");
+    els.bodyBottom.appendChild(panel);
+  } else {
+    if (position === "left") panel.classList.add("docked-left");
+    els.bodyRow.appendChild(panel);
+    if (position === "left") els.bodyRow.insertBefore(panel, els.bodyRow.firstChild);
+  }
+  updateBodyBottomVisibility();
+}
+
+function detectDockZone(clientX: number, clientY: number): DockPosition | null {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (clientY > h * 0.78) return "bottom";
+  if (clientX < w * 0.12) return "left";
+  if (clientX > w * 0.88) return "right";
+  return null;
+}
+
+function showDockZoneIndicator(zone: DockPosition | null): void {
+  const el = els.dockZoneIndicator;
+  if (!zone) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  el.style.left = zone === "right" ? "auto" : "0";
+  el.style.right = zone === "right" ? "0" : "auto";
+  el.style.top = zone === "bottom" ? "auto" : "0";
+  el.style.bottom = zone === "bottom" ? "0" : "auto";
+  el.style.width = zone === "bottom" ? "100%" : "240px";
+  el.style.height = zone === "bottom" ? "220px" : "100%";
+}
+
+function setupPanelDrag(header: HTMLElement, panel: HTMLElement, label: string): void {
+  header.addEventListener("mousedown", (downEvent) => {
+    if ((downEvent.target as HTMLElement).closest("button")) return;
+    downEvent.preventDefault();
+
+    let zone: DockPosition | null = null;
+    header.classList.add("dragging");
+    document.body.classList.add("panel-dragging");
+    const ghost = document.createElement("div");
+    ghost.className = "panel-drag-ghost";
+    ghost.textContent = label;
+    document.body.appendChild(ghost);
+    ghost.style.left = `${downEvent.clientX}px`;
+    ghost.style.top = `${downEvent.clientY}px`;
+
+    const onMove = (e: MouseEvent) => {
+      ghost.style.left = `${e.clientX}px`;
+      ghost.style.top = `${e.clientY}px`;
+      zone = detectDockZone(e.clientX, e.clientY);
+      showDockZoneIndicator(zone);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      header.classList.remove("dragging");
+      document.body.classList.remove("panel-dragging");
+      ghost.remove();
+      showDockZoneIndicator(null);
+      if (zone) setPanelDock(panel, zone);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
 }
 
 // --- Split view --------------------------------------------------------
@@ -1065,10 +1176,9 @@ function getCommands(): PaletteCommand[] {
     { id: "export-txt", label: t("export.txt"), run: () => void exportAs("txt") },
     { id: "export-html", label: t("export.html"), run: () => void exportAs("html") },
     { id: "toggle-sidebar", label: t("menu.toggleSidebar"), run: () => els.body.classList.toggle("sidebar-hidden") },
-    { id: "toggle-outline", label: t("menu.toggleOutline"), run: () => (els.outlinePanel.hidden = !els.outlinePanel.hidden) },
+    { id: "toggle-outline", label: t("menu.toggleOutline"), run: () => toggleOutlinePanel() },
     { id: "toggle-git", label: t("menu.toggleGit"), run: () => toggleGitPanel() },
     { id: "toggle-split", label: t("menu.toggleSplit"), run: () => toggleSplitView() },
-    { id: "toggle-panel-side", label: t("menu.panelSide"), run: () => els.body.classList.toggle("panels-left") },
     { id: "toggle-zen", label: t("menu.toggleZen"), run: () => els.app.classList.toggle("zen-mode") },
     {
       id: "search-files",
@@ -1275,7 +1385,6 @@ function renderWindowMenu(): void {
     "toggle-outline": !els.outlinePanel.hidden,
     "toggle-git": !els.gitPanel.hidden,
     "toggle-split": !els.contentColumnSecondary.hidden,
-    "toggle-panel-side": els.body.classList.contains("panels-left"),
     "toggle-zen": els.app.classList.contains("zen-mode"),
   };
   els.menuWindow.querySelectorAll<HTMLElement>(".menu-toggle").forEach((btn) => {
@@ -1294,16 +1403,13 @@ els.menuWindow.addEventListener("click", (e) => {
       els.body.classList.toggle("sidebar-hidden");
       break;
     case "toggle-outline":
-      els.outlinePanel.hidden = !els.outlinePanel.hidden;
+      toggleOutlinePanel();
       break;
     case "toggle-git":
       toggleGitPanel();
       break;
     case "toggle-split":
       toggleSplitView();
-      break;
-    case "toggle-panel-side":
-      els.body.classList.toggle("panels-left");
       break;
     case "toggle-zen":
       els.app.classList.toggle("zen-mode");
@@ -1448,6 +1554,9 @@ applyShortcutLabels();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
 setupResizer(els.splitResizer, els.contentColumnSecondary, false);
+setupVerticalResizer(els.bodyBottomResizer, els.bodyBottom);
+setupPanelDrag(els.outlineHeader, els.outlinePanel, t("outline.title"));
+setupPanelDrag(els.gitHeader, els.gitPanel, "Git");
 els.splitTabSelect.addEventListener("change", renderSplitPreview);
 els.splitCloseBtn.addEventListener("click", toggleSplitView);
 setupDragDrop();
