@@ -379,7 +379,78 @@ body {
 #body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   min-height: 0;
+  position: relative;
+}
+
+#body-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#body-bottom-resizer {
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+#body-bottom-resizer[hidden] {
+  display: none;
+}
+
+#body-bottom-resizer:hover {
+  background: var(--bg-selected);
+}
+
+#body-bottom {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  height: 220px;
+  min-height: 120px;
+  max-height: 60vh;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
+
+#body-bottom[hidden] {
+  display: none;
+}
+
+.dock-zone-indicator {
+  position: fixed;
+  background: color-mix(in srgb, var(--bg-selected) 25%, transparent);
+  border: 2px solid var(--bg-selected);
+  z-index: 200;
+  pointer-events: none;
+}
+
+.dock-zone-indicator[hidden] {
+  display: none;
+}
+
+.panel-drag-ghost {
+  position: fixed;
+  z-index: 201;
+  pointer-events: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -140%);
+  white-space: nowrap;
+}
+
+body.panel-dragging,
+body.panel-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
 }
 
 #sidebar {
@@ -507,6 +578,8 @@ body {
 #app.zen-mode #git-panel,
 #app.zen-mode #split-resizer,
 #app.zen-mode #content-column-secondary,
+#app.zen-mode #body-bottom,
+#app.zen-mode #body-bottom-resizer,
 #app.zen-mode #statusbar,
 #app.zen-mode #update-banner {
   display: none !important;
@@ -541,11 +614,22 @@ body {
   flex-shrink: 0;
 }
 
-#body.panels-left #outline-panel,
-#body.panels-left #git-panel {
-  order: -1;
+#outline-panel.docked-left,
+#git-panel.docked-left {
   border-left: none;
   border-right: 1px solid var(--border);
+}
+
+#outline-panel.docked-bottom,
+#git-panel.docked-bottom {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  border-left: none;
+  border-right: 1px solid var(--border);
+  border-top: none;
+  flex: 1;
 }
 
 #outline-header {
@@ -558,6 +642,11 @@ body {
   font-weight: 600;
   letter-spacing: 0.05em;
   color: var(--text-muted);
+  cursor: grab;
+}
+
+#outline-header.dragging {
+  cursor: grabbing;
 }
 
 #outline-list {
@@ -611,6 +700,11 @@ body {
   justify-content: space-between;
   padding: 0 8px 0 12px;
   flex-shrink: 0;
+  cursor: grab;
+}
+
+#git-header.dragging {
+  cursor: grabbing;
 }
 
 #git-branch {
@@ -1967,6 +2061,8 @@ body {
   #git-panel,
   #split-resizer,
   #content-column-secondary,
+  #body-bottom,
+  #body-bottom-resizer,
   #statusbar,
   #empty-state,
   #edit-layout {
@@ -1977,6 +2073,7 @@ body {
   body,
   #app,
   #body,
+  #body-row,
   #content {
     background: #ffffff !important;
     height: auto !important;

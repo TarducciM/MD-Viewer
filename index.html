@@ -70,10 +70,6 @@
               <span class="menu-check-icon"></span><span data-i18n="menu.toggleSplit">Vista divisa</span>
             </button>
             <div class="menu-sep"></div>
-            <button type="button" data-action="toggle-panel-side" class="menu-toggle">
-              <span class="menu-check-icon"></span><span data-i18n="menu.panelSide">Pannelli a sinistra</span>
-            </button>
-            <div class="menu-sep"></div>
             <button type="button" data-action="toggle-zen" class="menu-toggle">
               <span class="menu-check-icon"></span><span data-i18n="menu.toggleZen">Modalità zen</span>
             </button>
@@ -129,6 +125,8 @@
       </div>
 
       <div id="body">
+        <div id="dock-zone-indicator" class="dock-zone-indicator" hidden></div>
+        <div id="body-row">
         <aside id="sidebar">
           <div id="sidebar-header">
             <span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span>
@@ -227,6 +225,9 @@
           </div>
           <div id="git-list"></div>
         </aside>
+        </div>
+        <div id="body-bottom-resizer" hidden></div>
+        <div id="body-bottom" hidden></div>
       </div>
 
       <footer id="statusbar">
