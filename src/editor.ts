@@ -131,7 +131,150 @@ export type FormatAction =
   | "taskList"
   | "blockquote"
   | "table"
+  | "tableAddRow"
+  | "tableAddColumn"
   | "hr";
+
+// --- Table cell navigation & editing --------------------------------------
+
+const TABLE_ROW_RE = /^\s*\|/;
+
+function isTableSeparatorLine(text: string): boolean {
+  return /^\s*\|?[\s:|-]+\|?\s*$/.test(text) && text.includes("-");
+}
+
+interface TableCell {
+  from: number;
+  to: number;
+}
+
+// Requires the "| a | b |" leading+trailing-pipe form the app's own table
+// template uses; cells with an escaped `\|` aren't handled (rare in practice).
+function tableRowCells(line: { text: string; from: number }): TableCell[] {
+  const segments = line.text.split("|");
+  const cells: TableCell[] = [];
+  let offset = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (i > 0 && i < segments.length - 1) {
+      cells.push({ from: line.from + offset, to: line.from + offset + seg.length });
+    }
+    offset += seg.length + 1;
+  }
+  return cells;
+}
+
+function findCellIndex(cells: TableCell[], pos: number): number {
+  for (let i = 0; i < cells.length; i++) {
+    if (pos >= cells[i].from && pos <= cells[i].to) return i;
+  }
+  return -1;
+}
+
+// Walks to the next/previous row of the same table, skipping the `| --- |`
+// separator row (there's nothing useful to tab into there).
+function adjacentTableLine(state: EditorState, lineNumber: number, direction: 1 | -1): number | null {
+  const total = state.doc.lines;
+  let n = lineNumber + direction;
+  while (n >= 1 && n <= total) {
+    const text = state.doc.line(n).text;
+    if (!TABLE_ROW_RE.test(text)) return null;
+    if (!isTableSeparatorLine(text)) return n;
+    n += direction;
+  }
+  return null;
+}
+
+function selectCell(view: EditorView, cell: TableCell): void {
+  view.dispatch({ selection: { anchor: cell.from, head: cell.to } });
+}
+
+// Tab/Shift-Tab cell-to-cell navigation; returns false to fall through to
+// normal indent handling when the cursor isn't inside a table row.
+function handleTableTab(view: EditorView, direction: 1 | -1): boolean {
+  const { state } = view;
+  const pos = state.selection.main.head;
+  const line = state.doc.lineAt(pos);
+  if (!TABLE_ROW_RE.test(line.text) || isTableSeparatorLine(line.text)) return false;
+
+  const cells = tableRowCells(line);
+  if (cells.length === 0) return false;
+  const idx = findCellIndex(cells, pos);
+  const currentIdx = idx === -1 ? (direction === 1 ? -1 : cells.length) : idx;
+  const targetIdx = currentIdx + direction;
+
+  if (targetIdx >= 0 && targetIdx < cells.length) {
+    selectCell(view, cells[targetIdx]);
+    return true;
+  }
+
+  if (direction === 1) {
+    const nextLineNum = adjacentTableLine(state, line.number, 1);
+    if (nextLineNum !== null) {
+      const nextCells = tableRowCells(state.doc.line(nextLineNum));
+      if (nextCells.length > 0) {
+        selectCell(view, nextCells[0]);
+        return true;
+      }
+    }
+    const columnCount = cells.length;
+    const insertAt = line.to;
+    const cursorPos = insertAt + 2;
+    view.dispatch({
+      changes: { from: insertAt, to: insertAt, insert: "\n" + "|".repeat(columnCount + 1) },
+      selection: { anchor: cursorPos, head: cursorPos },
+    });
+    return true;
+  }
+
+  const prevLineNum = adjacentTableLine(state, line.number, -1);
+  if (prevLineNum !== null) {
+    const prevCells = tableRowCells(state.doc.line(prevLineNum));
+    if (prevCells.length > 0) selectCell(view, prevCells[prevCells.length - 1]);
+  }
+  return true;
+}
+
+function findTableBounds(state: EditorState, pos: number): { fromLine: number; toLine: number } | null {
+  const startLine = state.doc.lineAt(pos);
+  if (!TABLE_ROW_RE.test(startLine.text)) return null;
+  let fromLine = startLine.number;
+  while (fromLine > 1 && TABLE_ROW_RE.test(state.doc.line(fromLine - 1).text)) fromLine--;
+  let toLine = startLine.number;
+  const total = state.doc.lines;
+  while (toLine < total && TABLE_ROW_RE.test(state.doc.line(toLine + 1).text)) toLine++;
+  return { fromLine, toLine };
+}
+
+function addTableRow(view: EditorView): void {
+  const { state } = view;
+  const bounds = findTableBounds(state, state.selection.main.head);
+  if (!bounds) return;
+  const lastLine = state.doc.line(bounds.toLine);
+  const columnCount = tableRowCells(lastLine).length;
+  if (columnCount === 0) return;
+  const insertAt = lastLine.to;
+  const cursorPos = insertAt + 2;
+  view.dispatch({
+    changes: { from: insertAt, to: insertAt, insert: "\n" + "|".repeat(columnCount + 1) },
+    selection: { anchor: cursorPos, head: cursorPos },
+  });
+  view.focus();
+}
+
+function addTableColumn(view: EditorView): void {
+  const { state } = view;
+  const bounds = findTableBounds(state, state.selection.main.head);
+  if (!bounds) return;
+  const changes = [];
+  for (let n = bounds.fromLine; n <= bounds.toLine; n++) {
+    const line = state.doc.line(n);
+    const addition = isTableSeparatorLine(line.text) ? " --- |" : "  |";
+    changes.push({ from: line.to, to: line.to, insert: addition });
+  }
+  view.dispatch({ changes });
+  view.focus();
+}
 
 function applyFormat(view: EditorView, action: FormatAction): void {
   const { state } = view;
@@ -222,6 +365,12 @@ function applyFormat(view: EditorView, action: FormatAction): void {
     case "table":
       insertBlock("| Col 1 | Col 2 |\n| --- | --- |\n| A | B |\n\n\0");
       break;
+    case "tableAddRow":
+      addTableRow(view);
+      break;
+    case "tableAddColumn":
+      addTableColumn(view);
+      break;
   }
 }
 
@@ -248,6 +397,8 @@ export function createMarkdownEditor(
       extensions: [
         basicSetup,
         keymap.of([
+          { key: "Tab", run: (v) => handleTableTab(v, 1) },
+          { key: "Shift-Tab", run: (v) => handleTableTab(v, -1) },
           indentWithTab,
           { key: "Mod-b", run: (v) => (applyFormat(v, "bold"), true) },
           { key: "Mod-i", run: (v) => (applyFormat(v, "italic"), true) },
