@@ -19,6 +19,7 @@
             <div class="menu-sep"></div>
             <button type="button" data-action="save" id="menu-save-item" data-i18n="menu.save">Salva (Ctrl+S)</button>
             <button type="button" data-action="close-tab" id="menu-close-tab-item" data-i18n="menu.closeTab">Chiudi tab (Ctrl+W)</button>
+            <button type="button" data-action="reopen-closed-tab" data-i18n="menu.reopenClosedTab">Riapri tab chiusa (Ctrl+Shift+T)</button>
             <div id="menu-recent-section" hidden>
               <div class="menu-sep"></div>
               <div class="menu-label" data-i18n="menu.recent">Recenti</div>
@@ -54,6 +55,9 @@
             </button>
             <button type="button" data-action="toggle-git" class="menu-toggle">
               <span class="menu-check-icon"></span><span data-i18n="menu.toggleGit">Mostra/nascondi Git</span>
+            </button>
+            <button type="button" data-action="toggle-split" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleSplit">Vista divisa</span>
             </button>
             <div class="menu-sep"></div>
             <button type="button" data-action="toggle-panel-side" class="menu-toggle">
@@ -168,6 +172,12 @@
                 <button type="button" class="fmt-btn" data-format="table" title="Tabella">
                   <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="13" height="11" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6.5h13M1.5 10.5h13M6 2.5v11M10.5 2.5v11" stroke="currentColor" stroke-width="0.9"/></svg>
                 </button>
+                <button type="button" class="fmt-btn" data-format="tableAddRow" data-i18n-title="editor.tableAddRow" title="Aggiungi riga alla tabella">
+                  <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="13" height="7" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6h13M6 2.5v7M10.5 2.5v7" stroke="currentColor" stroke-width="0.9"/><path d="M8 11v3.5M6.3 12.75h3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" class="fmt-btn" data-format="tableAddColumn" data-i18n-title="editor.tableAddColumn" title="Aggiungi colonna alla tabella">
+                  <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="7" height="11" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6.5h7M1.5 10.5h7" stroke="currentColor" stroke-width="0.9"/><path d="M12 4.75v6.5M8.75 8h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
                 <button type="button" class="fmt-btn" data-format="hr" title="Linea orizzontale">―</button>
               </div>
               <div id="editor-pane"></div>
@@ -178,6 +188,18 @@
               <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
             </button>
           </div>
+          </main>
+        </div>
+        <div id="split-resizer" hidden></div>
+        <div id="content-column-secondary" hidden>
+          <div id="split-header">
+            <select id="split-tab-select"></select>
+            <button type="button" id="split-close-btn" class="icon-btn" data-i18n-title="split.close" aria-label="Close split view">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <main id="content-secondary">
+            <article id="markdown-preview-secondary" class="markdown-body"></article>
           </main>
         </div>
         <aside id="outline-panel" hidden>
@@ -217,6 +239,8 @@
           </div>
         </div>
       </footer>
+
+      <div id="tree-context-menu" class="context-menu" hidden></div>
 
       <div id="command-palette-overlay" hidden>
         <div id="command-palette" role="dialog" aria-modal="true">

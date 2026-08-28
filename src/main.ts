@@ -6,6 +6,9 @@ import {
   writeTextFile,
   exists,
   watchImmediate,
+  mkdir,
+  remove,
+  rename,
   type UnwatchFn,
 } from "@tauri-apps/plugin-fs";
 import { basename, dirname, sep, join } from "@tauri-apps/api/path";
@@ -86,7 +89,9 @@ const els = {
   emptyOpenFileBtn: document.querySelector<HTMLButtonElement>("#empty-open-file-btn")!,
   app: document.querySelector<HTMLDivElement>("#app")!,
   body: document.querySelector<HTMLDivElement>("#body")!,
+  sidebar: document.querySelector<HTMLDivElement>("#sidebar")!,
   fileTree: document.querySelector<HTMLDivElement>("#file-tree")!,
+  treeContextMenu: document.querySelector<HTMLDivElement>("#tree-context-menu")!,
   sidebarTitle: document.querySelector<HTMLSpanElement>("#sidebar-title")!,
   tabBar: document.querySelector<HTMLDivElement>("#tab-bar")!,
   emptyState: document.querySelector<HTMLDivElement>("#empty-state")!,
@@ -126,6 +131,11 @@ const els = {
   gitBranch: document.querySelector<HTMLSpanElement>("#git-branch")!,
   gitList: document.querySelector<HTMLDivElement>("#git-list")!,
   gitRefreshBtn: document.querySelector<HTMLButtonElement>("#git-refresh-btn")!,
+  contentColumnSecondary: document.querySelector<HTMLDivElement>("#content-column-secondary")!,
+  splitResizer: document.querySelector<HTMLDivElement>("#split-resizer")!,
+  splitTabSelect: document.querySelector<HTMLSelectElement>("#split-tab-select")!,
+  splitCloseBtn: document.querySelector<HTMLButtonElement>("#split-close-btn")!,
+  previewSecondary: document.querySelector<HTMLElement>("#markdown-preview-secondary")!,
 };
 
 const settings: Settings = loadSettings();
@@ -137,6 +147,8 @@ let activeTabPath: string | null = null;
 let editHandle: MarkdownEditorHandle | null = null;
 let editPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 let currentRoot: string | null = null;
+const closedTabPaths: string[] = [];
+const MAX_CLOSED_TABS = 10;
 
 function findTab(path: string): Tab | undefined {
   return tabs.find((tab) => tab.filePath === path);
@@ -145,13 +157,14 @@ function activeTab(): Tab | undefined {
   return activeTabPath ? findTab(activeTabPath) : undefined;
 }
 
-function setupResizer(handleEl: HTMLElement, targetEl: HTMLElement): void {
+function setupResizer(handleEl: HTMLElement, targetEl: HTMLElement, growOnRight = true): void {
   handleEl.addEventListener("mousedown", (downEvent) => {
     const startX = downEvent.clientX;
     const startWidth = targetEl.getBoundingClientRect().width;
     const parentWidth = targetEl.parentElement!.getBoundingClientRect().width;
+    const sign = growOnRight ? 1 : -1;
     const onMove = (e: MouseEvent) => {
-      const width = Math.min(parentWidth * 0.8, Math.max(160, startWidth + (e.clientX - startX)));
+      const width = Math.min(parentWidth * 0.8, Math.max(160, startWidth + sign * (e.clientX - startX)));
       targetEl.style.width = `${width}px`;
     };
     const onUp = () => {
@@ -178,6 +191,7 @@ function setupDropdown(triggerEl: HTMLButtonElement, menuEl: HTMLElement): void 
   });
 }
 document.addEventListener("click", closeAllDropdowns);
+dropdownMenus.push(els.treeContextMenu);
 
 // --- Tab bar rendering ---------------------------------------------------
 
@@ -349,6 +363,7 @@ function showTabContent(tab: Tab): void {
           void markWikiLinks(els.editPreview);
           updateStatusChips();
           updateOutline();
+          refreshSplitView();
         }, EDIT_PREVIEW_DEBOUNCE_MS);
       },
       syncPreviewScrollToLine,
@@ -538,6 +553,46 @@ function toggleGitPanel(): void {
   if (wasHidden) void refreshGitPanel();
 }
 
+// --- Split view --------------------------------------------------------
+
+function renderSplitTabOptions(): void {
+  const previousValue = els.splitTabSelect.value;
+  els.splitTabSelect.innerHTML = "";
+  for (const tab of tabs) {
+    const option = document.createElement("option");
+    option.value = tab.filePath;
+    option.textContent = tab.filePath.split(/[\\/]/).pop() ?? tab.filePath;
+    els.splitTabSelect.appendChild(option);
+  }
+  const stillOpen = tabs.some((tab) => tab.filePath === previousValue);
+  els.splitTabSelect.value = stillOpen ? previousValue : (activeTabPath ?? tabs[0]?.filePath ?? "");
+}
+
+function renderSplitPreview(): void {
+  const tab = findTab(els.splitTabSelect.value);
+  if (!tab) {
+    els.previewSecondary.innerHTML = "";
+    return;
+  }
+  const sourceText = tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text;
+  els.previewSecondary.innerHTML = renderMarkdown(sourceText, tab.baseDir);
+  void renderMermaidBlocks(els.previewSecondary, mermaidSources);
+  void markWikiLinks(els.previewSecondary);
+}
+
+function refreshSplitView(): void {
+  if (els.contentColumnSecondary.hidden) return;
+  renderSplitTabOptions();
+  renderSplitPreview();
+}
+
+function toggleSplitView(): void {
+  const wasHidden = els.contentColumnSecondary.hidden;
+  els.contentColumnSecondary.hidden = !wasHidden;
+  els.splitResizer.hidden = !wasHidden;
+  if (wasHidden) refreshSplitView();
+}
+
 // --- Tab lifecycle -----------------------------------------------------
 
 async function watchTab(tab: Tab): Promise<void> {
@@ -570,6 +625,7 @@ async function reloadTab(tab: Tab): Promise<void> {
       els.preview.scrollTop = scrollTop;
       updateStatusChips();
       updateOutline();
+      refreshSplitView();
     }
   } catch {
     // The file may have been removed or is mid-write; keep showing the last good render.
@@ -629,6 +685,7 @@ async function activateTab(filePath: string): Promise<void> {
   renderTabBar();
   updateStatusChips();
   updateOutline();
+  refreshSplitView();
   updateEditUiState();
 }
 
@@ -640,9 +697,11 @@ async function closeTab(filePath: string): Promise<void> {
   tab.unwatch?.();
   const idx = tabs.indexOf(tab);
   tabs.splice(idx, 1);
+  pushClosedTab(filePath);
 
   if (activeTabPath !== filePath) {
     renderTabBar();
+    refreshSplitView();
     return;
   }
 
@@ -652,6 +711,18 @@ async function closeTab(filePath: string): Promise<void> {
   const nextTab = tabs[idx] ?? tabs[idx - 1];
   if (nextTab) await activateTab(nextTab.filePath);
   else showEmptyState();
+}
+
+function pushClosedTab(filePath: string): void {
+  const existingIndex = closedTabPaths.indexOf(filePath);
+  if (existingIndex !== -1) closedTabPaths.splice(existingIndex, 1);
+  closedTabPaths.push(filePath);
+  if (closedTabPaths.length > MAX_CLOSED_TABS) closedTabPaths.shift();
+}
+
+async function reopenLastClosedTab(): Promise<void> {
+  const filePath = closedTabPaths.pop();
+  if (filePath) await openTabForFile(filePath);
 }
 
 async function toggleEditMode(): Promise<void> {
@@ -795,6 +866,123 @@ async function loadFolder(rootPath: string, initialFile?: string): Promise<void>
   if (!els.gitPanel.hidden) void refreshGitPanel();
 }
 
+// --- Sidebar file management ------------------------------------------
+
+async function createNewFile(dir: string): Promise<void> {
+  const name = window.prompt(t("tree.newFilePrompt"));
+  if (!name) return;
+  const filename = /\.(md|markdown|mdown|mkd)$/i.test(name) ? name : `${name}.md`;
+  const filePath = await join(dir, filename);
+  if (await exists(filePath)) {
+    window.alert(t("tree.errorExists"));
+    return;
+  }
+  try {
+    await writeFile(filePath, new Uint8Array());
+  } catch (err) {
+    window.alert(t("tree.errorGeneric", { error: String(err) }));
+    return;
+  }
+  if (!currentRoot) return;
+  await loadFolder(currentRoot, filePath);
+  const tab = activeTab();
+  if (tab && tab.filePath === filePath && !tab.isEditing) await toggleEditMode();
+}
+
+async function createNewFolder(dir: string): Promise<void> {
+  const name = window.prompt(t("tree.newFolderPrompt"));
+  if (!name) return;
+  const folderPath = await join(dir, name);
+  if (await exists(folderPath)) {
+    window.alert(t("tree.errorExists"));
+    return;
+  }
+  try {
+    await mkdir(folderPath);
+  } catch (err) {
+    window.alert(t("tree.errorGeneric", { error: String(err) }));
+    return;
+  }
+  if (currentRoot) await loadFolder(currentRoot, activeTabPath ?? undefined);
+}
+
+async function renameTreeEntry(path: string, isDir: boolean): Promise<void> {
+  const oldName = await basename(path);
+  const newName = window.prompt(t("tree.renamePrompt"), oldName);
+  if (!newName || newName === oldName) return;
+  const parentDir = await dirname(path);
+  const newPath = await join(parentDir, newName);
+  try {
+    await rename(path, newPath);
+  } catch (err) {
+    window.alert(t("tree.errorGeneric", { error: String(err) }));
+    return;
+  }
+  const dirPrefix = path + sep();
+  for (const tab of tabs) {
+    const isMatch = isDir ? tab.filePath.startsWith(dirPrefix) : tab.filePath === path;
+    if (!isMatch) continue;
+    const updatedPath = isDir ? newPath + tab.filePath.slice(path.length) : newPath;
+    if (activeTabPath === tab.filePath) {
+      activeTabPath = updatedPath;
+      localStorage.setItem(LAST_FILE_KEY, updatedPath);
+    }
+    tab.filePath = updatedPath;
+    await watchTab(tab);
+  }
+  if (currentRoot) await loadFolder(currentRoot, activeTabPath ?? undefined);
+}
+
+async function deleteTreeEntry(path: string, isDir: boolean): Promise<void> {
+  const name = await basename(path);
+  const confirmed = window.confirm(t(isDir ? "tree.confirmDeleteFolder" : "tree.confirmDeleteFile", { name }));
+  if (!confirmed) return;
+  try {
+    await remove(path, { recursive: true });
+  } catch (err) {
+    window.alert(t("tree.errorGeneric", { error: String(err) }));
+    return;
+  }
+  if (currentRoot) await loadFolder(currentRoot, activeTabPath ?? undefined);
+}
+
+interface TreeContextTarget {
+  path: string;
+  isDir: boolean;
+  isRoot: boolean;
+}
+
+async function showTreeContextMenu(clientX: number, clientY: number, target: TreeContextTarget): Promise<void> {
+  closeAllDropdowns();
+  const targetDir = target.isDir ? target.path : await dirname(target.path);
+
+  els.treeContextMenu.innerHTML = "";
+  const addItem = (labelKey: string, onClick: () => void) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = t(labelKey);
+    btn.addEventListener("click", () => {
+      els.treeContextMenu.hidden = true;
+      onClick();
+    });
+    els.treeContextMenu.appendChild(btn);
+  };
+
+  addItem("tree.newFile", () => void createNewFile(targetDir));
+  addItem("tree.newFolder", () => void createNewFolder(targetDir));
+  if (!target.isRoot) {
+    const sep = document.createElement("div");
+    sep.className = "menu-sep";
+    els.treeContextMenu.appendChild(sep);
+    addItem("tree.rename", () => void renameTreeEntry(target.path, target.isDir));
+    addItem("tree.delete", () => void deleteTreeEntry(target.path, target.isDir));
+  }
+
+  els.treeContextMenu.style.left = `${clientX}px`;
+  els.treeContextMenu.style.top = `${clientY}px`;
+  els.treeContextMenu.hidden = false;
+}
+
 async function buildBreadcrumb(filePath: string): Promise<string> {
   if (!currentRoot) return filePath;
   const rootName = await basename(currentRoot);
@@ -814,6 +1002,7 @@ function showEmptyState(): void {
   updateEditUiState();
   updateStatusChips();
   updateOutline();
+  refreshSplitView();
 }
 
 async function restoreLastSession(): Promise<void> {
@@ -865,6 +1054,7 @@ function getCommands(): PaletteCommand[] {
         if (activeTabPath) void closeTab(activeTabPath);
       },
     },
+    { id: "reopen-closed-tab", label: t("menu.reopenClosedTab"), run: () => void reopenLastClosedTab() },
     { id: "toggle-edit", label: t("palette.toggleEdit"), run: () => void toggleEditMode() },
     { id: "export-pdf", label: t("export.pdf"), run: () => void exportAs("pdf") },
     { id: "export-docx", label: t("export.docx"), run: () => void exportAs("docx") },
@@ -873,6 +1063,7 @@ function getCommands(): PaletteCommand[] {
     { id: "toggle-sidebar", label: t("menu.toggleSidebar"), run: () => els.body.classList.toggle("sidebar-hidden") },
     { id: "toggle-outline", label: t("menu.toggleOutline"), run: () => (els.outlinePanel.hidden = !els.outlinePanel.hidden) },
     { id: "toggle-git", label: t("menu.toggleGit"), run: () => toggleGitPanel() },
+    { id: "toggle-split", label: t("menu.toggleSplit"), run: () => toggleSplitView() },
     { id: "toggle-panel-side", label: t("menu.panelSide"), run: () => els.body.classList.toggle("panels-left") },
     { id: "toggle-zen", label: t("menu.toggleZen"), run: () => els.app.classList.toggle("zen-mode") },
     {
@@ -1027,6 +1218,9 @@ els.menuFile.addEventListener("click", (e) => {
     case "close-tab":
       if (activeTabPath) void closeTab(activeTabPath);
       break;
+    case "reopen-closed-tab":
+      void reopenLastClosedTab();
+      break;
   }
 });
 
@@ -1050,6 +1244,7 @@ function renderWindowMenu(): void {
     "toggle-sidebar": !els.body.classList.contains("sidebar-hidden"),
     "toggle-outline": !els.outlinePanel.hidden,
     "toggle-git": !els.gitPanel.hidden,
+    "toggle-split": !els.contentColumnSecondary.hidden,
     "toggle-panel-side": els.body.classList.contains("panels-left"),
     "toggle-zen": els.app.classList.contains("zen-mode"),
   };
@@ -1073,6 +1268,9 @@ els.menuWindow.addEventListener("click", (e) => {
       break;
     case "toggle-git":
       toggleGitPanel();
+      break;
+    case "toggle-split":
+      toggleSplitView();
       break;
     case "toggle-panel-side":
       els.body.classList.toggle("panels-left");
@@ -1130,6 +1328,9 @@ window.addEventListener("keydown", (e) => {
   } else if (key === "p" && e.shiftKey) {
     e.preventDefault();
     openCommandPalette();
+  } else if (key === "t" && e.shiftKey) {
+    e.preventDefault();
+    void reopenLastClosedTab();
   }
 });
 
@@ -1207,11 +1408,24 @@ function handleWikiLinkClick(e: MouseEvent): void {
 }
 els.preview.addEventListener("click", handleWikiLinkClick);
 els.editPreview.addEventListener("click", handleWikiLinkClick);
+els.previewSecondary.addEventListener("click", handleWikiLinkClick);
 els.gitRefreshBtn.addEventListener("click", () => void refreshGitPanel());
+els.sidebar.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  if (!currentRoot) return;
+  const row = (e.target as HTMLElement).closest<HTMLElement>(".tree-row");
+  const target: TreeContextTarget = row
+    ? { path: row.dataset.path!, isDir: row.dataset.isDir === "true", isRoot: false }
+    : { path: currentRoot, isDir: true, isRoot: true };
+  void showTreeContextMenu(e.clientX, e.clientY, target);
+});
 
 applyTranslations();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
+setupResizer(els.splitResizer, els.contentColumnSecondary, false);
+els.splitTabSelect.addEventListener("change", renderSplitPreview);
+els.splitCloseBtn.addEventListener("click", toggleSplitView);
 setupDragDrop();
 void restoreLastSession();
 setTimeout(() => void runUpdateCheck(false), UPDATE_CHECK_DELAY_MS);
