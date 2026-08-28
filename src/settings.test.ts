@@ -23,4 +23,8 @@ describe("settings persistence", () => {
     localStorage.setItem("mdviewer.settings", "{not valid json");
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
+
+  it("defaults the code color scheme to 'default'", () => {
+    expect(DEFAULT_SETTINGS.codeColorScheme).toBe("default");
+  });
 });
