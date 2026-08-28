@@ -16,6 +16,7 @@ export function initSettingsPanel(settings: Settings, callbacks: SettingsPanelCa
   const languageSelect = document.querySelector<HTMLSelectElement>("#setting-language")!;
   const themeSelect = document.querySelector<HTMLSelectElement>("#setting-theme")!;
   const fontSizeSelect = document.querySelector<HTMLSelectElement>("#setting-font-size")!;
+  const codeSchemeSelect = document.querySelector<HTMLSelectElement>("#setting-code-scheme")!;
   const lineNumbersCheck = document.querySelector<HTMLInputElement>("#setting-line-numbers")!;
   const wordWrapCheck = document.querySelector<HTMLInputElement>("#setting-word-wrap")!;
   const autoReloadCheck = document.querySelector<HTMLInputElement>("#setting-auto-reload")!;
@@ -32,6 +33,7 @@ export function initSettingsPanel(settings: Settings, callbacks: SettingsPanelCa
     languageSelect.value = settings.language;
     themeSelect.value = settings.theme;
     fontSizeSelect.value = settings.fontSize;
+    codeSchemeSelect.value = settings.codeColorScheme;
     lineNumbersCheck.checked = settings.lineNumbers;
     wordWrapCheck.checked = settings.wordWrap;
     autoReloadCheck.checked = settings.autoReload;
@@ -72,6 +74,12 @@ export function initSettingsPanel(settings: Settings, callbacks: SettingsPanelCa
 
   fontSizeSelect.addEventListener("change", () => {
     settings.fontSize = fontSizeSelect.value as Settings["fontSize"];
+    saveSettings(settings);
+    applySettings(settings);
+  });
+
+  codeSchemeSelect.addEventListener("change", () => {
+    settings.codeColorScheme = codeSchemeSelect.value as Settings["codeColorScheme"];
     saveSettings(settings);
     applySettings(settings);
   });

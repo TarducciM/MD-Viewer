@@ -1,6 +1,7 @@
 export type ThemeMode = "dark" | "light" | "system";
 export type FontSize = "small" | "medium" | "large";
 export type Language = "it" | "en";
+export type CodeColorScheme = "default" | "vivid" | "ocean" | "forest" | "monochrome";
 
 export interface Settings {
   language: Language;
@@ -10,6 +11,7 @@ export interface Settings {
   lineNumbers: boolean;
   autoReload: boolean;
   showHidden: boolean;
+  codeColorScheme: CodeColorScheme;
 }
 
 const STORAGE_KEY = "mdviewer.settings";
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lineNumbers: true,
   autoReload: true,
   showHidden: false,
+  codeColorScheme: "default",
 };
 
 export function loadSettings(): Settings {
@@ -42,6 +45,7 @@ export function applySettings(settings: Settings): void {
   const root = document.documentElement;
   root.dataset.theme = settings.theme;
   root.dataset.fontSize = settings.fontSize;
+  root.dataset.codeScheme = settings.codeColorScheme;
   root.classList.toggle("wrap-code", settings.wordWrap);
   root.classList.toggle("show-line-numbers", settings.lineNumbers);
 }
