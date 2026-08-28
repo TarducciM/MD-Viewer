@@ -14,12 +14,22 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-file-btn" data-i18n="menu.file">File</button>
           <div id="menu-file" class="dropdown-menu dropdown-menu-left" hidden>
-            <button type="button" data-action="open-file" data-i18n="menu.openFile">Apri file… (Ctrl+O)</button>
-            <button type="button" data-action="open-folder" data-i18n="menu.openFolder">Apri cartella… (Ctrl+Shift+O)</button>
+            <button type="button" data-action="open-file" data-shortcut-for="open-file">
+              <span data-i18n="menu.openFile">Apri file…</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="open-folder" data-shortcut-for="open-folder">
+              <span data-i18n="menu.openFolder">Apri cartella…</span><span class="shortcut-hint"></span>
+            </button>
             <div class="menu-sep"></div>
-            <button type="button" data-action="save" id="menu-save-item" data-i18n="menu.save">Salva (Ctrl+S)</button>
-            <button type="button" data-action="close-tab" id="menu-close-tab-item" data-i18n="menu.closeTab">Chiudi tab (Ctrl+W)</button>
-            <button type="button" data-action="reopen-closed-tab" data-i18n="menu.reopenClosedTab">Riapri tab chiusa (Ctrl+Shift+T)</button>
+            <button type="button" data-action="save" id="menu-save-item" data-shortcut-for="save">
+              <span data-i18n="menu.save">Salva</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="close-tab" id="menu-close-tab-item" data-shortcut-for="close-tab">
+              <span data-i18n="menu.closeTab">Chiudi tab</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="reopen-closed-tab" data-shortcut-for="reopen-closed-tab">
+              <span data-i18n="menu.reopenClosedTab">Riapri tab chiusa</span><span class="shortcut-hint"></span>
+            </button>
             <div id="menu-recent-section" hidden>
               <div class="menu-sep"></div>
               <div class="menu-label" data-i18n="menu.recent">Recenti</div>
@@ -72,18 +82,20 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-help-btn" data-i18n="menu.help">Aiuto</button>
           <div id="menu-help" class="dropdown-menu dropdown-menu-left" hidden>
-            <button type="button" data-action="open-palette" data-i18n="menu.commandPalette">Palette comandi… (Ctrl+Shift+P)</button>
+            <button type="button" data-action="open-palette" data-shortcut-for="open-palette">
+              <span data-i18n="menu.commandPalette">Palette comandi…</span><span class="shortcut-hint"></span>
+            </button>
             <button type="button" data-action="check-update" data-i18n="menu.checkUpdate">Controlla aggiornamenti</button>
             <button type="button" data-action="open-repo" data-i18n="menu.repo">Repository su GitHub</button>
           </div>
         </div>
       </header>
       <header id="toolbar">
-        <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title">
+        <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title" data-shortcut-for="open-folder">
           <svg viewBox="0 0 16 16" class="icon"><path d="M1.5 3a.5.5 0 0 1 .5-.5h3.6l1.2 1.4H14a.5.5 0 0 1 .5.5v8.1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V3z" fill="currentColor"/></svg>
           <span data-i18n="toolbar.openFolder">Apri cartella</span>
         </button>
-        <button id="open-file-btn" class="tb-btn" data-i18n-title="toolbar.openFile.title">
+        <button id="open-file-btn" class="tb-btn" data-i18n-title="toolbar.openFile.title" data-shortcut-for="open-file">
           <svg viewBox="0 0 16 16" class="icon"><path d="M4 1.5h5.5L12.5 4.5V14a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 4 1.5z" fill="none" stroke="currentColor"/><path d="M9.3 1.6V4.5h2.9" fill="none" stroke="currentColor"/></svg>
           <span data-i18n="toolbar.openFile">Apri file</span>
         </button>
@@ -307,6 +319,11 @@
               <span data-i18n="settings.showHidden">Mostra cartelle nascoste (.git, node_modules, …)</span>
               <input type="checkbox" id="setting-show-hidden" />
             </label>
+            <div class="settings-section-header">
+              <span data-i18n="settings.shortcuts">Scorciatoie da tastiera</span>
+              <button type="button" id="setting-shortcuts-reset" data-i18n="settings.shortcuts.reset">Ripristina predefinite</button>
+            </div>
+            <div id="settings-shortcuts-list"></div>
           </div>
           <div id="settings-version"></div>
         </div>

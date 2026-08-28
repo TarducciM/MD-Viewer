@@ -40,6 +40,7 @@ import { searchInFiles, flattenFiles, type SearchResult } from "./search";
 import { checkForUpdate, installPendingUpdate } from "./updater";
 import { fuzzyFilter } from "./fuzzy";
 import { getGitStatus, type GitStatusResult, type GitFileStatusKind } from "./git";
+import { loadShortcuts, matchesCombo, formatCombo } from "./shortcuts";
 
 const LAST_ROOT_KEY = "mdviewer.lastRoot";
 const LAST_FILE_KEY = "mdviewer.lastFile";
@@ -141,6 +142,7 @@ const els = {
 const settings: Settings = loadSettings();
 setLanguage(settings.language);
 applySettings(settings);
+let shortcuts: Record<string, string> = loadShortcuts();
 
 const tabs: Tab[] = [];
 let activeTabPath: string | null = null;
@@ -385,7 +387,8 @@ function updateEditUiState(): void {
   const tab = activeTab();
   els.editBtn.disabled = !tab;
   els.editBtn.classList.toggle("active", !!tab?.isEditing);
-  els.editBtn.title = t(tab?.isEditing ? "toolbar.edit.exit.title" : "toolbar.edit.title");
+  els.editBtn.title =
+    t(tab?.isEditing ? "toolbar.edit.exit.title" : "toolbar.edit.title") + shortcutSuffix("toggle-edit");
   els.dirtyIndicator.hidden = !tab?.isDirty;
   els.exportBtn.disabled = !tab;
 }
@@ -1046,6 +1049,7 @@ function getCommands(): PaletteCommand[] {
   return [
     { id: "open-file", label: t("menu.openFile"), run: () => void openFile() },
     { id: "open-folder", label: t("menu.openFolder"), run: () => void openFolder() },
+    { id: "open-palette", label: t("menu.commandPalette"), run: () => openCommandPalette() },
     { id: "save", label: t("menu.save"), run: () => void saveActiveTab() },
     {
       id: "close-tab",
@@ -1127,12 +1131,38 @@ function renderPaletteList(query: string): void {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "palette-item" + (index === paletteActiveIndex ? " active" : "");
-    btn.textContent = cmd.label;
+    const label = document.createElement("span");
+    label.textContent = cmd.label;
+    btn.appendChild(label);
+    const combo = shortcuts[cmd.id];
+    if (combo) {
+      const hint = document.createElement("span");
+      hint.className = "shortcut-hint";
+      hint.textContent = formatCombo(combo);
+      btn.appendChild(hint);
+    }
     btn.addEventListener("click", () => {
       closeCommandPalette();
       cmd.run();
     });
     els.commandPaletteList.appendChild(btn);
+  });
+}
+
+function shortcutSuffix(id: string): string {
+  const combo = shortcuts[id];
+  return combo ? ` (${formatCombo(combo)})` : "";
+}
+
+function applyShortcutLabels(): void {
+  document.querySelectorAll<HTMLElement>("[data-shortcut-for]").forEach((el) => {
+    const id = el.dataset.shortcutFor!;
+    const hint = el.querySelector<HTMLElement>(".shortcut-hint");
+    if (hint) {
+      hint.textContent = shortcutSuffix(id).trim();
+    } else if (el.dataset.i18nTitle) {
+      el.title = t(el.dataset.i18nTitle) + shortcutSuffix(id);
+    }
   });
 }
 
@@ -1309,28 +1339,14 @@ els.updateBannerAction.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (e) => {
-  const mod = e.ctrlKey || e.metaKey;
-  if (!mod) return;
-  const key = e.key.toLowerCase();
-  if (key === "o") {
-    e.preventDefault();
-    if (e.shiftKey) void openFolder();
-    else void openFile();
-  } else if (key === "e") {
-    e.preventDefault();
-    void toggleEditMode();
-  } else if (key === "s") {
-    e.preventDefault();
-    void saveActiveTab();
-  } else if (key === "w") {
-    e.preventDefault();
-    if (activeTabPath) void closeTab(activeTabPath);
-  } else if (key === "p" && e.shiftKey) {
-    e.preventDefault();
-    openCommandPalette();
-  } else if (key === "t" && e.shiftKey) {
-    e.preventDefault();
-    void reopenLastClosedTab();
+  for (const [id, combo] of Object.entries(shortcuts)) {
+    if (!combo || !matchesCombo(e, combo)) continue;
+    const cmd = getCommands().find((c) => c.id === id);
+    if (cmd) {
+      e.preventDefault();
+      cmd.run();
+    }
+    return;
   }
 });
 
@@ -1376,6 +1392,7 @@ initSettingsPanel(settings, {
   onLanguageChange: () => {
     updateEditUiState();
     renderTabBar();
+    applyShortcutLabels();
   },
   onShowHiddenChange: () => {
     if (currentRoot) void loadFolder(currentRoot, activeTabPath ?? undefined);
@@ -1383,6 +1400,12 @@ initSettingsPanel(settings, {
   onAutoReloadChange: () => {
     for (const tab of tabs) void watchTab(tab);
   },
+  onShortcutsChange: () => {
+    shortcuts = loadShortcuts();
+    applyShortcutLabels();
+    updateEditUiState();
+  },
+  getShortcutCommands: () => getCommands().map((cmd) => ({ id: cmd.id, label: cmd.label })),
 });
 
 els.sidebarSearchToggle.addEventListener("click", () => {
@@ -1421,6 +1444,7 @@ els.sidebar.addEventListener("contextmenu", (e) => {
 });
 
 applyTranslations();
+applyShortcutLabels();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
 setupResizer(els.splitResizer, els.contentColumnSecondary, false);
