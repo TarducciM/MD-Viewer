@@ -83,15 +83,22 @@ jobs:
           gh api "repos/${{ github.repository }}/releases/generate-notes" \
             -f tag_name="${{ github.ref_name }}" --jq .body > notes.md
 
-          cat > downloads.md <<'EOF'
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+
+          cat > downloads.md <<EOF
           ### Downloads
 
           | Platform | File |
           | --- | --- |
-          | Windows | `*_x64-setup.exe` (installer), `*_x64_en-US.msi`, or `*_x64-portable.exe` (no install needed) |
-          | macOS (Apple Silicon) | `*_aarch64.dmg` |
-          | macOS (Intel) | `*_x64.dmg` |
-          | Linux | `*.AppImage`, `*.deb`, or `*.rpm` |
+          | Windows (installer) | [MD.Viewer_${version}_x64-setup.exe]($base/MD.Viewer_${version}_x64-setup.exe) |
+          | Windows (MSI) | [MD.Viewer_${version}_x64_en-US.msi]($base/MD.Viewer_${version}_x64_en-US.msi) |
+          | Windows (portable, no install) | [MD.Viewer_${version}_x64-portable.exe]($base/MD.Viewer_${version}_x64-portable.exe) |
+          | macOS (Apple Silicon) | [MD.Viewer_${version}_aarch64.dmg]($base/MD.Viewer_${version}_aarch64.dmg) |
+          | macOS (Intel) | [MD.Viewer_${version}_x64.dmg]($base/MD.Viewer_${version}_x64.dmg) |
+          | Linux (AppImage) | [MD.Viewer_${version}_amd64.AppImage]($base/MD.Viewer_${version}_amd64.AppImage) |
+          | Linux (.deb) | [MD.Viewer_${version}_amd64.deb]($base/MD.Viewer_${version}_amd64.deb) |
+          | Linux (.rpm) | [MD.Viewer-${version}-1.x86_64.rpm]($base/MD.Viewer-${version}-1.x86_64.rpm) |
           EOF
 
           cat downloads.md notes.md > full-notes.md
