@@ -28,6 +28,6 @@ function summarize(doc: Doc): string {
 | --- | --- |
 | Sidebar con albero file | ✅ |
 | Syntax highlighting | ✅ |
-| Editing | ❌ (è solo un viewer) |
+| Editing (`Ctrl+E`) | ✅ |
 
 > Suggerimento: prova a ridimensionare la sidebar trascinando il bordo destro.
