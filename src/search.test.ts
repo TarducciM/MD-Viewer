@@ -23,7 +23,7 @@ vi.mock("@tauri-apps/api/path", () => ({
   join: (a: string, b: string) => Promise.resolve(`${a}/${b}`),
 }));
 
-const { searchInFiles } = await import("./search");
+const { searchInFiles, replaceInFiles } = await import("./search");
 
 const readText = async (path: string) => fileContents[path] ?? null;
 
@@ -53,5 +53,48 @@ describe("searchInFiles", () => {
   it("skips files with no match", async () => {
     const results = await searchInFiles("/root", "root", "widgets", false, readText);
     expect(results.some((r) => r.path === "/root/notes.md")).toBe(false);
+  });
+});
+
+describe("replaceInFiles", () => {
+  it("returns an empty list for a blank query", async () => {
+    const written: Record<string, string> = {};
+    const writeText = async (path: string, content: string) => {
+      written[path] = content;
+    };
+    expect(await replaceInFiles("/root", "root", "  ", "x", false, readText, writeText)).toEqual([]);
+    expect(written).toEqual({});
+  });
+
+  it("replaces case-insensitive matches and reports the count per file", async () => {
+    const written: Record<string, string> = {};
+    const writeText = async (path: string, content: string) => {
+      written[path] = content;
+    };
+    const results = await replaceInFiles("/root", "root", "widgets", "gadgets", false, readText, writeText);
+    const byPath = Object.fromEntries(results.map((r) => [r.path, r.count]));
+    expect(byPath).toEqual({ "/root/guide.md": 1, "/root/docs/deep.md": 3 });
+    expect(written["/root/guide.md"]).toBe("# Guide\n\nThis line mentions gadgets.\nAnother line.");
+    expect(written["/root/docs/deep.md"]).toBe("gadgets and gadgets again\nsecond gadgets line");
+  });
+
+  it("does not write files with no match", async () => {
+    const written: Record<string, string> = {};
+    const writeText = async (path: string, content: string) => {
+      written[path] = content;
+    };
+    await replaceInFiles("/root", "root", "widgets", "gadgets", false, readText, writeText);
+    expect(written["/root/notes.md"]).toBeUndefined();
+  });
+
+  it("treats regex-special characters in the query literally", async () => {
+    const contents: Record<string, string> = { "/root/guide.md": "cost: $5.00 (was $10.00)" };
+    const readSpecial = async (path: string) => contents[path] ?? null;
+    const written: Record<string, string> = {};
+    const writeText = async (path: string, content: string) => {
+      written[path] = content;
+    };
+    await replaceInFiles("/root", "root", "$5.00", "$7.00", false, readSpecial, writeText);
+    expect(written["/root/guide.md"]).toBe("cost: $7.00 (was $10.00)");
   });
 });

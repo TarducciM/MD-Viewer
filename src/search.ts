@@ -49,3 +49,40 @@ export async function searchInFiles(
 
   return results;
 }
+
+export interface ReplaceResult {
+  path: string;
+  count: number;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function replaceInFiles(
+  rootPath: string,
+  rootName: string,
+  query: string,
+  replacement: string,
+  showHidden: boolean,
+  readText: (path: string) => Promise<string | null>,
+  writeText: (path: string, content: string) => Promise<void>,
+): Promise<ReplaceResult[]> {
+  const needle = query.trim();
+  if (!needle) return [];
+
+  const pattern = new RegExp(escapeRegExp(needle), "gi");
+  const tree = await buildTree(rootPath, rootName, showHidden);
+  const results: ReplaceResult[] = [];
+
+  for (const file of flattenFiles(tree)) {
+    const text = await readText(file.path);
+    if (text === null) continue;
+    const matches = text.match(pattern);
+    if (!matches || matches.length === 0) continue;
+    await writeText(file.path, text.replace(pattern, replacement));
+    results.push({ path: file.path, count: matches.length });
+  }
+
+  return results;
+}

@@ -36,7 +36,11 @@ import { markdownToPlainText, markdownToStandaloneHtml, EXPORT_HTML_CSS } from "
 import { markdownToDocxBlob } from "./docxExport";
 import { countWords } from "./wordcount";
 import { getRecents, addRecent } from "./recents";
-import { searchInFiles, flattenFiles, type SearchResult } from "./search";
+import { getFavorites, isFavorite, toggleFavorite } from "./favorites";
+import { getSnapshots, addSnapshot, clearHistory, type Snapshot } from "./history";
+import { findBacklinks, type Backlink } from "./backlinks";
+import { diffLines } from "./diff";
+import { searchInFiles, replaceInFiles, flattenFiles, type SearchResult } from "./search";
 import { checkForUpdate, installPendingUpdate } from "./updater";
 import { fuzzyFilter } from "./fuzzy";
 import { getGitStatus, type GitStatusResult, type GitFileStatusKind } from "./git";
@@ -93,6 +97,12 @@ const els = {
   sidebar: document.querySelector<HTMLDivElement>("#sidebar")!,
   fileTree: document.querySelector<HTMLDivElement>("#file-tree")!,
   treeContextMenu: document.querySelector<HTMLDivElement>("#tree-context-menu")!,
+  favoritesSection: document.querySelector<HTMLDivElement>("#sidebar-favorites-section")!,
+  favoritesList: document.querySelector<HTMLDivElement>("#sidebar-favorites-list")!,
+  historyOverlay: document.querySelector<HTMLDivElement>("#history-overlay")!,
+  historyList: document.querySelector<HTMLDivElement>("#history-list")!,
+  historyCloseBtn: document.querySelector<HTMLButtonElement>("#history-close-btn")!,
+  historyClearBtn: document.querySelector<HTMLButtonElement>("#history-clear-btn")!,
   sidebarTitle: document.querySelector<HTMLSpanElement>("#sidebar-title")!,
   tabBar: document.querySelector<HTMLDivElement>("#tab-bar")!,
   emptyState: document.querySelector<HTMLDivElement>("#empty-state")!,
@@ -122,6 +132,10 @@ const els = {
   sidebarSearch: document.querySelector<HTMLDivElement>("#sidebar-search")!,
   sidebarSearchInput: document.querySelector<HTMLInputElement>("#sidebar-search-input")!,
   sidebarSearchResults: document.querySelector<HTMLDivElement>("#sidebar-search-results")!,
+  sidebarReplaceToggle: document.querySelector<HTMLButtonElement>("#sidebar-replace-toggle")!,
+  sidebarReplaceRow: document.querySelector<HTMLDivElement>("#sidebar-replace-row")!,
+  sidebarReplaceInput: document.querySelector<HTMLInputElement>("#sidebar-replace-input")!,
+  sidebarReplaceAllBtn: document.querySelector<HTMLButtonElement>("#sidebar-replace-all-btn")!,
   updateBanner: document.querySelector<HTMLDivElement>("#update-banner")!,
   updateBannerText: document.querySelector<HTMLSpanElement>("#update-banner-text")!,
   updateBannerAction: document.querySelector<HTMLButtonElement>("#update-banner-action")!,
@@ -134,6 +148,9 @@ const els = {
   gitBranch: document.querySelector<HTMLSpanElement>("#git-branch")!,
   gitList: document.querySelector<HTMLDivElement>("#git-list")!,
   gitRefreshBtn: document.querySelector<HTMLButtonElement>("#git-refresh-btn")!,
+  backlinksPanel: document.querySelector<HTMLDivElement>("#backlinks-panel")!,
+  backlinksHeader: document.querySelector<HTMLDivElement>("#backlinks-header")!,
+  backlinksList: document.querySelector<HTMLDivElement>("#backlinks-list")!,
   bodyRow: document.querySelector<HTMLDivElement>("#body-row")!,
   bodyBottom: document.querySelector<HTMLDivElement>("#body-bottom")!,
   bodyBottomResizer: document.querySelector<HTMLDivElement>("#body-bottom-resizer")!,
@@ -142,7 +159,9 @@ const els = {
   splitResizer: document.querySelector<HTMLDivElement>("#split-resizer")!,
   splitTabSelect: document.querySelector<HTMLSelectElement>("#split-tab-select")!,
   splitCloseBtn: document.querySelector<HTMLButtonElement>("#split-close-btn")!,
+  splitDiffToggle: document.querySelector<HTMLButtonElement>("#split-diff-toggle")!,
   previewSecondary: document.querySelector<HTMLElement>("#markdown-preview-secondary")!,
+  diffView: document.querySelector<HTMLDivElement>("#diff-view")!,
 };
 
 const settings: Settings = loadSettings();
@@ -271,6 +290,110 @@ function renderRecentMenu(): void {
   }
 }
 
+function renderFavorites(): void {
+  const favorites = getFavorites();
+  els.favoritesSection.hidden = favorites.length === 0;
+  els.favoritesList.innerHTML = "";
+  for (const entry of favorites) {
+    const row = document.createElement("div");
+    row.className = "favorite-row";
+    row.title = entry.path;
+
+    const label = document.createElement("span");
+    label.className = "favorite-row-label";
+    label.textContent = entry.label;
+    label.addEventListener("click", () => void openTabForFile(entry.path));
+    row.appendChild(label);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "favorite-row-remove";
+    removeBtn.textContent = "×";
+    removeBtn.title = t("tree.unfavorite");
+    removeBtn.addEventListener("click", () => {
+      toggleFavorite(entry.path);
+      renderFavorites();
+    });
+    row.appendChild(removeBtn);
+
+    els.favoritesList.appendChild(row);
+  }
+}
+
+// --- Local edit history --------------------------------------------------
+
+function previewLine(content: string): string {
+  const line = content.split("\n").find((l) => l.trim().length > 0) ?? "";
+  return line.trim().slice(0, 80);
+}
+
+function renderHistoryList(): void {
+  const tab = activeTab();
+  els.historyList.innerHTML = "";
+  if (!tab) return;
+  const snapshots = getSnapshots(tab.filePath);
+  if (snapshots.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "history-empty";
+    empty.textContent = t("history.empty");
+    els.historyList.appendChild(empty);
+    return;
+  }
+  for (const snap of snapshots) {
+    const row = document.createElement("div");
+    row.className = "history-row";
+
+    const info = document.createElement("div");
+    info.className = "history-row-info";
+    const time = document.createElement("div");
+    time.className = "history-row-time";
+    time.textContent = new Date(snap.timestamp).toLocaleString();
+    info.appendChild(time);
+    const preview = document.createElement("div");
+    preview.className = "history-row-preview";
+    preview.textContent = previewLine(snap.content);
+    info.appendChild(preview);
+    row.appendChild(info);
+
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    restoreBtn.className = "history-row-restore";
+    restoreBtn.textContent = t("history.restore");
+    restoreBtn.addEventListener("click", () => void restoreSnapshot(tab, snap));
+    row.appendChild(restoreBtn);
+
+    els.historyList.appendChild(row);
+  }
+}
+
+async function restoreSnapshot(tab: Tab, snap: Snapshot): Promise<void> {
+  if (!window.confirm(t("history.confirmRestore"))) return;
+  closeHistory();
+  if (!tab.isEditing) {
+    tab.isEditing = true;
+    tab.unwatch?.();
+    tab.unwatch = null;
+  }
+  tab.editBuffer = snap.content;
+  markDirty(tab);
+  if (activeTabPath === tab.filePath) {
+    showTabContent(tab);
+    updateStatusChips();
+    updateOutline();
+    refreshSplitView();
+  }
+}
+
+function openHistory(): void {
+  if (!activeTab()) return;
+  renderHistoryList();
+  els.historyOverlay.hidden = false;
+}
+
+function closeHistory(): void {
+  els.historyOverlay.hidden = true;
+}
+
 // --- Sidebar search ----------------------------------------------------
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -335,6 +458,73 @@ async function runSearch(query: string): Promise<void> {
   const rootName = await basename(currentRoot);
   const results = await searchInFiles(currentRoot, rootName, query, settings.showHidden, readFileTextForSearch);
   renderSearchResults(query, results);
+}
+
+// Skips files currently open for editing (returns null so replaceInFiles
+// skips them) to avoid silently clobbering unsaved buffer content on disk.
+async function readFileTextForReplace(path: string): Promise<string | null> {
+  const openTab = findTab(path);
+  if (openTab?.isEditing) return null;
+  if (openTab) return openTab.text;
+  try {
+    const bytes = await readFile(path);
+    return decodeBytes(bytes, detectEncoding(bytes));
+  } catch {
+    return null;
+  }
+}
+
+async function writeFileTextForReplace(path: string, content: string): Promise<void> {
+  const openTab = findTab(path);
+  const encoding: TextEncodingId = openTab?.encoding ?? "utf-8";
+  const lineEnding: LineEnding = openTab?.lineEnding ?? "LF";
+  const finalText = applyLineEnding(content, lineEnding);
+  const bytes = encodeText(finalText, encoding);
+  if (openTab) openTab.ignoreNextExternalChange = true;
+  await writeFile(path, bytes);
+  if (openTab) {
+    openTab.text = finalText;
+    addSnapshot(path, finalText, Date.now());
+    if (activeTabPath === path && !openTab.isEditing) {
+      els.preview.innerHTML = renderMarkdown(finalText, openTab.baseDir);
+      void renderMermaidBlocks(els.preview, mermaidSources);
+      void markWikiLinks(els.preview);
+      updateOutline();
+    }
+  }
+}
+
+async function handleReplaceAll(): Promise<void> {
+  const query = els.sidebarSearchInput.value;
+  const replacement = els.sidebarReplaceInput.value;
+  if (!query.trim() || !currentRoot) return;
+
+  const rootName = await basename(currentRoot);
+  const preview = await searchInFiles(currentRoot, rootName, query, settings.showHidden, readFileTextForReplace);
+  const totalCount = preview.reduce((sum, r) => sum + r.matches.length, 0);
+  if (preview.length === 0) {
+    window.alert(t("sidebar.replace.none"));
+    return;
+  }
+
+  const confirmed = window.confirm(
+    t("sidebar.replace.confirm", { count: String(totalCount), files: String(preview.length) }),
+  );
+  if (!confirmed) return;
+
+  const results = await replaceInFiles(
+    currentRoot,
+    rootName,
+    query,
+    replacement,
+    settings.showHidden,
+    readFileTextForReplace,
+    writeFileTextForReplace,
+  );
+  const replacedCount = results.reduce((sum, r) => sum + r.count, 0);
+  window.alert(t("sidebar.replace.done", { count: String(replacedCount), files: String(results.length) }));
+  void runSearch(query);
+  if (!els.gitPanel.hidden) void refreshGitPanel();
 }
 
 // --- Per-tab state helpers -------------------------------------------------
@@ -580,6 +770,64 @@ function toggleGitPanel(): void {
   updateBodyBottomVisibility();
 }
 
+function renderBacklinksPanel(results: Backlink[], noFile: boolean): void {
+  els.backlinksList.innerHTML = "";
+  if (noFile || results.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "backlink-empty";
+    empty.textContent = t(noFile ? "backlinks.noFile" : "backlinks.empty");
+    els.backlinksList.appendChild(empty);
+    return;
+  }
+
+  const byPath = new Map<string, Backlink[]>();
+  for (const result of results) {
+    const list = byPath.get(result.path) ?? [];
+    list.push(result);
+    byPath.set(result.path, list);
+  }
+
+  for (const [path, matches] of byPath) {
+    const group = document.createElement("div");
+    group.className = "backlink-group";
+    group.textContent = path.split(/[\\/]/).pop() ?? path;
+    group.title = path;
+    els.backlinksList.appendChild(group);
+
+    for (const match of matches) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "backlink-row";
+      btn.textContent = match.text || "…";
+      btn.addEventListener("click", () => {
+        void openTabForFile(path).then(() => {
+          const opened = activeTab();
+          if (opened) scrollToLine(opened.isEditing ? els.editPreview : els.preview, match.line);
+        });
+      });
+      els.backlinksList.appendChild(btn);
+    }
+  }
+}
+
+async function refreshBacklinksPanel(): Promise<void> {
+  const tab = activeTab();
+  if (!tab || !currentRoot) {
+    renderBacklinksPanel([], true);
+    return;
+  }
+  const rootName = await basename(currentRoot);
+  const results = await findBacklinks(currentRoot, rootName, tab.filePath, settings.showHidden, readFileTextForSearch);
+  renderBacklinksPanel(results, false);
+}
+
+function toggleBacklinksPanel(): void {
+  const wasHidden = els.backlinksPanel.hidden;
+  els.backlinksPanel.hidden = !wasHidden;
+  if (wasHidden) void refreshBacklinksPanel();
+  updateBodyBottomVisibility();
+}
+
 function toggleOutlinePanel(): void {
   els.outlinePanel.hidden = !els.outlinePanel.hidden;
   updateBodyBottomVisibility();
@@ -682,16 +930,81 @@ function renderSplitTabOptions(): void {
   els.splitTabSelect.value = stillOpen ? previousValue : (activeTabPath ?? tabs[0]?.filePath ?? "");
 }
 
+function tabSourceText(tab: Tab): string {
+  return tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text;
+}
+
+let diffModeActive = false;
+const DIFF_MAX_CELLS = 4_000_000;
+
+function renderDiffView(): void {
+  const primary = activeTab();
+  const secondary = findTab(els.splitTabSelect.value);
+  els.diffView.innerHTML = "";
+  if (!primary || !secondary) return;
+
+  const showMessage = (key: string) => {
+    const empty = document.createElement("div");
+    empty.className = "diff-empty";
+    empty.textContent = t(key);
+    els.diffView.appendChild(empty);
+  };
+
+  if (primary.filePath === secondary.filePath) {
+    showMessage("diff.selectAnotherFile");
+    return;
+  }
+
+  const linesA = tabSourceText(primary).split(/\r\n|\r|\n/);
+  const linesB = tabSourceText(secondary).split(/\r\n|\r|\n/);
+  if (linesA.length * linesB.length > DIFF_MAX_CELLS) {
+    showMessage("diff.tooLarge");
+    return;
+  }
+
+  const diff = diffLines(linesA, linesB);
+  if (diff.every((entry) => entry.type === "same")) {
+    showMessage("diff.identical");
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const entry of diff) {
+    const row = document.createElement("div");
+    row.className = `diff-line diff-line-${entry.type}`;
+    const marker = document.createElement("span");
+    marker.className = "diff-line-marker";
+    marker.textContent = entry.type === "add" ? "+" : entry.type === "remove" ? "−" : "";
+    row.appendChild(marker);
+    const text = document.createElement("span");
+    text.textContent = entry.text;
+    row.appendChild(text);
+    fragment.appendChild(row);
+  }
+  els.diffView.appendChild(fragment);
+}
+
 function renderSplitPreview(): void {
+  if (diffModeActive) {
+    renderDiffView();
+    return;
+  }
   const tab = findTab(els.splitTabSelect.value);
   if (!tab) {
     els.previewSecondary.innerHTML = "";
     return;
   }
-  const sourceText = tab.isEditing ? (tab.editBuffer ?? tab.text) : tab.text;
-  els.previewSecondary.innerHTML = renderMarkdown(sourceText, tab.baseDir);
+  els.previewSecondary.innerHTML = renderMarkdown(tabSourceText(tab), tab.baseDir);
   void renderMermaidBlocks(els.previewSecondary, mermaidSources);
   void markWikiLinks(els.previewSecondary);
+}
+
+function setDiffMode(active: boolean): void {
+  diffModeActive = active;
+  els.splitDiffToggle.classList.toggle("active", active);
+  els.previewSecondary.hidden = active;
+  els.diffView.hidden = !active;
+  renderSplitPreview();
 }
 
 function refreshSplitView(): void {
@@ -773,6 +1086,7 @@ async function openTabForFile(filePath: string): Promise<void> {
       ignoreNextExternalChange: false,
     };
     tabs.push(tab);
+    addSnapshot(filePath, text, Date.now());
     await watchTab(tab);
     await activateTab(filePath);
     addRecent(filePath, false);
@@ -800,6 +1114,7 @@ async function activateTab(filePath: string): Promise<void> {
   updateStatusChips();
   updateOutline();
   refreshSplitView();
+  if (!els.backlinksPanel.hidden) void refreshBacklinksPanel();
   updateEditUiState();
 }
 
@@ -873,9 +1188,11 @@ async function saveActiveTab(): Promise<void> {
   tab.text = text;
   tab.editBuffer = text;
   tab.isDirty = false;
+  addSnapshot(tab.filePath, text, Date.now());
   renderTabBar();
   updateEditUiState();
   if (!els.gitPanel.hidden) void refreshGitPanel();
+  if (!els.backlinksPanel.hidden) void refreshBacklinksPanel();
 }
 
 async function exportAs(format: ExportFormat): Promise<void> {
@@ -1084,6 +1401,12 @@ async function showTreeContextMenu(clientX: number, clientY: number, target: Tre
 
   addItem("tree.newFile", () => void createNewFile(targetDir));
   addItem("tree.newFolder", () => void createNewFolder(targetDir));
+  if (!target.isDir) {
+    addItem(isFavorite(target.path) ? "tree.unfavorite" : "tree.favorite", () => {
+      toggleFavorite(target.path);
+      renderFavorites();
+    });
+  }
   if (!target.isRoot) {
     const sep = document.createElement("div");
     sep.className = "menu-sep";
@@ -1170,6 +1493,17 @@ function getCommands(): PaletteCommand[] {
       },
     },
     { id: "reopen-closed-tab", label: t("menu.reopenClosedTab"), run: () => void reopenLastClosedTab() },
+    { id: "open-history", label: t("menu.history"), run: () => openHistory() },
+    {
+      id: "toggle-favorite",
+      label: activeTab() && isFavorite(activeTab()!.filePath) ? t("tree.unfavorite") : t("tree.favorite"),
+      run: () => {
+        const tab = activeTab();
+        if (!tab) return;
+        toggleFavorite(tab.filePath);
+        renderFavorites();
+      },
+    },
     { id: "toggle-edit", label: t("palette.toggleEdit"), run: () => void toggleEditMode() },
     { id: "export-pdf", label: t("export.pdf"), run: () => void exportAs("pdf") },
     { id: "export-docx", label: t("export.docx"), run: () => void exportAs("docx") },
@@ -1178,7 +1512,16 @@ function getCommands(): PaletteCommand[] {
     { id: "toggle-sidebar", label: t("menu.toggleSidebar"), run: () => els.body.classList.toggle("sidebar-hidden") },
     { id: "toggle-outline", label: t("menu.toggleOutline"), run: () => toggleOutlinePanel() },
     { id: "toggle-git", label: t("menu.toggleGit"), run: () => toggleGitPanel() },
+    { id: "toggle-backlinks", label: t("menu.toggleBacklinks"), run: () => toggleBacklinksPanel() },
     { id: "toggle-split", label: t("menu.toggleSplit"), run: () => toggleSplitView() },
+    {
+      id: "toggle-diff",
+      label: t("split.diffToggle"),
+      run: () => {
+        if (els.contentColumnSecondary.hidden) toggleSplitView();
+        setDiffMode(!diffModeActive);
+      },
+    },
     { id: "toggle-zen", label: t("menu.toggleZen"), run: () => els.app.classList.toggle("zen-mode") },
     {
       id: "search-files",
@@ -1361,6 +1704,9 @@ els.menuFile.addEventListener("click", (e) => {
     case "reopen-closed-tab":
       void reopenLastClosedTab();
       break;
+    case "open-history":
+      openHistory();
+      break;
   }
 });
 
@@ -1384,6 +1730,7 @@ function renderWindowMenu(): void {
     "toggle-sidebar": !els.body.classList.contains("sidebar-hidden"),
     "toggle-outline": !els.outlinePanel.hidden,
     "toggle-git": !els.gitPanel.hidden,
+    "toggle-backlinks": !els.backlinksPanel.hidden,
     "toggle-split": !els.contentColumnSecondary.hidden,
     "toggle-zen": els.app.classList.contains("zen-mode"),
   };
@@ -1407,6 +1754,9 @@ els.menuWindow.addEventListener("click", (e) => {
       break;
     case "toggle-git":
       toggleGitPanel();
+      break;
+    case "toggle-backlinks":
+      toggleBacklinksPanel();
       break;
     case "toggle-split":
       toggleSplitView();
@@ -1458,6 +1808,20 @@ window.addEventListener("keydown", (e) => {
 
 els.commandPaletteOverlay.addEventListener("click", (e) => {
   if (e.target === els.commandPaletteOverlay) closeCommandPalette();
+});
+els.historyOverlay.addEventListener("click", (e) => {
+  if (e.target === els.historyOverlay) closeHistory();
+});
+els.historyCloseBtn.addEventListener("click", closeHistory);
+els.historyClearBtn.addEventListener("click", () => {
+  const tab = activeTab();
+  if (!tab) return;
+  if (!window.confirm(t("history.confirmClear"))) return;
+  clearHistory(tab.filePath);
+  renderHistoryList();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.historyOverlay.hidden) closeHistory();
 });
 els.commandPaletteInput.addEventListener("input", () => {
   renderPaletteList(els.commandPaletteInput.value);
@@ -1521,6 +1885,8 @@ els.sidebarSearchToggle.addEventListener("click", () => {
   if (showingSearch) {
     els.sidebarSearchInput.focus();
     renderSearchResults(els.sidebarSearchInput.value, []);
+  } else {
+    els.sidebarReplaceRow.hidden = true;
   }
 });
 els.sidebarSearchInput.addEventListener("input", () => {
@@ -1528,6 +1894,11 @@ els.sidebarSearchInput.addEventListener("input", () => {
   if (searchTimer) clearTimeout(searchTimer);
   searchTimer = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS);
 });
+els.sidebarReplaceToggle.addEventListener("click", () => {
+  els.sidebarReplaceRow.hidden = !els.sidebarReplaceRow.hidden;
+  if (!els.sidebarReplaceRow.hidden) els.sidebarReplaceInput.focus();
+});
+els.sidebarReplaceAllBtn.addEventListener("click", () => void handleReplaceAll());
 
 function handleWikiLinkClick(e: MouseEvent): void {
   const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.wiki-link");
@@ -1551,14 +1922,17 @@ els.sidebar.addEventListener("contextmenu", (e) => {
 
 applyTranslations();
 applyShortcutLabels();
+renderFavorites();
 setupResizer(document.querySelector<HTMLDivElement>("#resizer")!, document.querySelector<HTMLDivElement>("#sidebar")!);
 setupResizer(document.querySelector<HTMLDivElement>("#edit-resizer")!, els.editorColumn);
 setupResizer(els.splitResizer, els.contentColumnSecondary, false);
 setupVerticalResizer(els.bodyBottomResizer, els.bodyBottom);
 setupPanelDrag(els.outlineHeader, els.outlinePanel, t("outline.title"));
 setupPanelDrag(els.gitHeader, els.gitPanel, "Git");
+setupPanelDrag(els.backlinksHeader, els.backlinksPanel, t("backlinks.title"));
 els.splitTabSelect.addEventListener("change", renderSplitPreview);
 els.splitCloseBtn.addEventListener("click", toggleSplitView);
+els.splitDiffToggle.addEventListener("click", () => setDiffMode(!diffModeActive));
 setupDragDrop();
 void restoreLastSession();
 setTimeout(() => void runUpdateCheck(false), UPDATE_CHECK_DELAY_MS);

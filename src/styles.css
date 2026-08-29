@@ -491,6 +491,72 @@ body.panel-dragging * {
   padding-bottom: 8px;
 }
 
+#sidebar-favorites-section {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  max-height: 30vh;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+#sidebar-favorites-header {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.favorite-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+  border-radius: 3px;
+  margin: 0 4px;
+}
+
+.favorite-row:hover {
+  background: var(--bg-hover);
+}
+
+.favorite-row-label {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 0 3px 12px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.favorite-row-remove {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 3px;
+  visibility: hidden;
+}
+
+.favorite-row:hover .favorite-row-remove {
+  visibility: visible;
+}
+
+.favorite-row-remove:hover {
+  background: var(--bg-selected);
+  color: #fff;
+}
+
 #sidebar-search {
   display: flex;
   flex-direction: column;
@@ -576,6 +642,7 @@ body.panel-dragging * {
 #app.zen-mode #resizer,
 #app.zen-mode #outline-panel,
 #app.zen-mode #git-panel,
+#app.zen-mode #backlinks-panel,
 #app.zen-mode #split-resizer,
 #app.zen-mode #content-column-secondary,
 #app.zen-mode #body-bottom,
@@ -770,6 +837,93 @@ body.panel-dragging * {
 .git-status-untracked { color: #6a9955; }
 .git-status-renamed { color: #4e94ce; }
 
+#backlinks-panel {
+  width: 260px;
+  min-width: 180px;
+  max-width: 420px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#backlinks-panel.docked-left {
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+#backlinks-panel.docked-bottom {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  border-left: none;
+  border-right: 1px solid var(--border);
+  border-top: none;
+  flex: 1;
+}
+
+#backlinks-header {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+#backlinks-header.dragging {
+  cursor: grabbing;
+}
+
+#backlinks-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.backlink-empty {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.backlink-group {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backlink-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 3px 12px 3px 20px;
+  font-size: 12px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backlink-row:hover {
+  background: var(--bg-hover);
+}
+
 /* File tree */
 
 .tree-row {
@@ -898,6 +1052,53 @@ body.panel-dragging * {
   flex: 1;
   overflow-y: auto;
   background: var(--bg-editor);
+}
+
+#diff-view {
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+#diff-view[hidden] {
+  display: none;
+}
+
+.diff-line {
+  display: flex;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 10px;
+}
+
+.diff-line-marker {
+  flex-shrink: 0;
+  width: 1.4em;
+  text-align: center;
+  user-select: none;
+  opacity: 0.8;
+}
+
+.diff-line-same {
+  color: var(--text);
+}
+
+.diff-line-add {
+  background: color-mix(in srgb, #3fb950 18%, transparent);
+  color: var(--text);
+}
+
+.diff-line-remove {
+  background: color-mix(in srgb, #e5484d 18%, transparent);
+  color: var(--text);
+}
+
+.diff-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: inherit;
 }
 
 #tab-bar {
@@ -1860,6 +2061,115 @@ body.panel-dragging * {
   color: var(--text-bright);
 }
 
+#history-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+}
+
+#history-overlay[hidden] {
+  display: none;
+}
+
+#history-panel {
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+#history-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
+.history-row:hover {
+  background: var(--bg-hover);
+}
+
+.history-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-row-time {
+  font-size: 12px;
+  color: var(--text-bright);
+}
+
+.history-row-preview {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+}
+
+.history-row-restore {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.history-row-restore:hover {
+  background: var(--bg-selected);
+  color: #fff;
+  border-color: var(--bg-selected);
+}
+
+.history-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+#history-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+#history-clear-btn {
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#history-clear-btn:hover {
+  color: var(--text-bright);
+  background: var(--bg-hover);
+}
+
 .icon-btn {
   background: transparent;
   border: none;
@@ -1873,6 +2183,11 @@ body.panel-dragging * {
 .icon-btn:hover {
   background: var(--bg-hover);
   color: var(--text-bright);
+}
+
+.icon-btn.active {
+  background: var(--bg-selected);
+  color: #fff;
 }
 
 .icon-btn .icon {
@@ -2059,6 +2374,7 @@ body.panel-dragging * {
   #resizer,
   #outline-panel,
   #git-panel,
+  #backlinks-panel,
   #split-resizer,
   #content-column-secondary,
   #body-bottom,
