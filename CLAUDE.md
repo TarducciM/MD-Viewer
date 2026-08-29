@@ -23,9 +23,9 @@ Releases are **not** automatic on push. To cut one:
 2. Run `cargo check` in `src-tauri/` once to sync `Cargo.lock`'s own version entry.
 3. `npm run typecheck && npm test && npm run build` before committing.
 4. Commit, then `git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z`.
-5. `.github/workflows/release.yml` builds Windows, macOS (arm64 + x64), and Linux (deb/rpm/AppImage), and creates a **draft** GitHub Release with all assets plus an auto-generated changelog and a downloads table.
-6. If any platform build fails, a `cleanup-on-failure` job deletes the partial draft automatically (the tag is left untouched — just re-run the failed job after fixing the issue).
-7. Releases are drafts on purpose so nothing goes public without a manual review. Publish explicitly with `gh release edit vX.Y.Z --draft=false` (or via the GitHub UI) — don't do this without being asked.
+5. `.github/workflows/release.yml` first re-verifies (`typecheck` + `test` + `build` + `cargo test`, mirroring CI) in a `verify` job, then builds Windows, macOS (arm64 + x64), and Linux (deb/rpm/AppImage), and creates a draft GitHub Release with all assets plus an auto-generated changelog and a downloads table.
+6. If verification or any platform build fails, a `cleanup-on-failure` job deletes the partial draft automatically (the tag is left untouched — just re-run the failed job after fixing the issue).
+7. **The release auto-publishes.** Once verify + every platform build + notes generation succeed, the `notes` job's last step runs `gh release edit vX.Y.Z --draft=false` itself — no manual approval step, no need to ask the user first. This is a deliberate standing instruction from the project owner (given 2026-08-27), reversing the earlier draft-only-until-asked policy. If a build fails partway, the draft is deleted by `cleanup-on-failure` as before, so nothing half-built ever goes public — the safety gate is "did every job succeed," not "did a human review it."
 
 ## Source layout (`src/`)
 

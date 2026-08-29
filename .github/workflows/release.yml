@@ -10,7 +10,29 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
   publish:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +76,8 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'MD Viewer ${{ github.ref_name }}'
           args: ${{ matrix.args }}
-          # draft so nothing goes live until reviewed and published by hand
+          # draft while assets are still being uploaded across platforms; the notes job
+          # un-drafts it automatically once everything (including verify) has succeeded
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: true
@@ -103,6 +126,12 @@ jobs:
 
           cat downloads.md notes.md > full-notes.md
           gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --notes-file full-notes.md
+
+      # verify + every platform build succeeded, notes are in place: publish automatically,
+      # no manual "un-draft" step needed.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
 
   cleanup-on-failure:
     needs: publish
