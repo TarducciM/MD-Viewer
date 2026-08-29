@@ -14,11 +14,23 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-file-btn" data-i18n="menu.file">File</button>
           <div id="menu-file" class="dropdown-menu dropdown-menu-left" hidden>
-            <button type="button" data-action="open-file" data-i18n="menu.openFile">Apri file… (Ctrl+O)</button>
-            <button type="button" data-action="open-folder" data-i18n="menu.openFolder">Apri cartella… (Ctrl+Shift+O)</button>
+            <button type="button" data-action="open-file" data-shortcut-for="open-file">
+              <span data-i18n="menu.openFile">Apri file…</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="open-folder" data-shortcut-for="open-folder">
+              <span data-i18n="menu.openFolder">Apri cartella…</span><span class="shortcut-hint"></span>
+            </button>
             <div class="menu-sep"></div>
-            <button type="button" data-action="save" id="menu-save-item" data-i18n="menu.save">Salva (Ctrl+S)</button>
-            <button type="button" data-action="close-tab" id="menu-close-tab-item" data-i18n="menu.closeTab">Chiudi tab (Ctrl+W)</button>
+            <button type="button" data-action="save" id="menu-save-item" data-shortcut-for="save">
+              <span data-i18n="menu.save">Salva</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="close-tab" id="menu-close-tab-item" data-shortcut-for="close-tab">
+              <span data-i18n="menu.closeTab">Chiudi tab</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="reopen-closed-tab" data-shortcut-for="reopen-closed-tab">
+              <span data-i18n="menu.reopenClosedTab">Riapri tab chiusa</span><span class="shortcut-hint"></span>
+            </button>
+            <button type="button" data-action="open-history" data-i18n="menu.history">Cronologia modifiche…</button>
             <div id="menu-recent-section" hidden>
               <div class="menu-sep"></div>
               <div class="menu-label" data-i18n="menu.recent">Recenti</div>
@@ -35,9 +47,6 @@
         <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-view-btn" data-i18n="menu.view">Visualizza</button>
           <div id="menu-view" class="dropdown-menu dropdown-menu-left" hidden>
-            <button type="button" data-action="toggle-sidebar" data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</button>
-            <button type="button" data-action="toggle-outline" data-i18n="menu.toggleOutline">Mostra/nascondi indice</button>
-            <div class="menu-sep"></div>
             <div class="menu-label" data-i18n="menu.theme">Tema</div>
             <button type="button" data-theme-choice="dark" data-i18n="settings.theme.dark">Scuro</button>
             <button type="button" data-theme-choice="light" data-i18n="settings.theme.light">Chiaro</button>
@@ -47,19 +56,46 @@
           </div>
         </div>
         <div class="dropdown">
+          <button type="button" class="menu-btn" id="menu-window-btn" data-i18n="menu.window">Finestra</button>
+          <div id="menu-window" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="toggle-sidebar" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleSidebar">Mostra/nascondi sidebar</span>
+            </button>
+            <button type="button" data-action="toggle-outline" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleOutline">Mostra/nascondi indice</span>
+            </button>
+            <button type="button" data-action="toggle-git" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleGit">Mostra/nascondi Git</span>
+            </button>
+            <button type="button" data-action="toggle-backlinks" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleBacklinks">Mostra/nascondi backlink</span>
+            </button>
+            <button type="button" data-action="toggle-split" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleSplit">Vista divisa</span>
+            </button>
+            <div class="menu-sep"></div>
+            <button type="button" data-action="toggle-zen" class="menu-toggle">
+              <span class="menu-check-icon"></span><span data-i18n="menu.toggleZen">Modalità zen</span>
+            </button>
+          </div>
+        </div>
+        <div class="dropdown">
           <button type="button" class="menu-btn" id="menu-help-btn" data-i18n="menu.help">Aiuto</button>
           <div id="menu-help" class="dropdown-menu dropdown-menu-left" hidden>
+            <button type="button" data-action="open-palette" data-shortcut-for="open-palette">
+              <span data-i18n="menu.commandPalette">Palette comandi…</span><span class="shortcut-hint"></span>
+            </button>
             <button type="button" data-action="check-update" data-i18n="menu.checkUpdate">Controlla aggiornamenti</button>
             <button type="button" data-action="open-repo" data-i18n="menu.repo">Repository su GitHub</button>
           </div>
         </div>
       </header>
       <header id="toolbar">
-        <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title">
+        <button id="open-folder-btn" class="tb-btn" data-i18n-title="toolbar.openFolder.title" data-shortcut-for="open-folder">
           <svg viewBox="0 0 16 16" class="icon"><path d="M1.5 3a.5.5 0 0 1 .5-.5h3.6l1.2 1.4H14a.5.5 0 0 1 .5.5v8.1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V3z" fill="currentColor"/></svg>
           <span data-i18n="toolbar.openFolder">Apri cartella</span>
         </button>
-        <button id="open-file-btn" class="tb-btn" data-i18n-title="toolbar.openFile.title">
+        <button id="open-file-btn" class="tb-btn" data-i18n-title="toolbar.openFile.title" data-shortcut-for="open-file">
           <svg viewBox="0 0 16 16" class="icon"><path d="M4 1.5h5.5L12.5 4.5V14a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 4 1.5z" fill="none" stroke="currentColor"/><path d="M9.3 1.6V4.5h2.9" fill="none" stroke="currentColor"/></svg>
           <span data-i18n="toolbar.openFile">Apri file</span>
         </button>
@@ -93,6 +129,8 @@
       </div>
 
       <div id="body">
+        <div id="dock-zone-indicator" class="dock-zone-indicator" hidden></div>
+        <div id="body-row">
         <aside id="sidebar">
           <div id="sidebar-header">
             <span id="sidebar-title" data-i18n="sidebar.placeholder">PROGETTO</span>
@@ -101,8 +139,21 @@
             </button>
           </div>
           <div id="sidebar-search" hidden>
-            <input type="text" id="sidebar-search-input" data-i18n-placeholder="sidebar.search.placeholder" placeholder="Cerca nei file…" />
+            <div id="sidebar-search-row">
+              <input type="text" id="sidebar-search-input" data-i18n-placeholder="sidebar.search.placeholder" placeholder="Cerca nei file…" />
+              <button type="button" id="sidebar-replace-toggle" class="icon-btn" data-i18n-title="sidebar.replace.toggle" aria-label="Toggle replace">
+                <svg viewBox="0 0 16 16" class="icon"><path d="M11 2.5l2.5 2.5L11 7.5M13.3 5H5.5a3 3 0 0 0-3 3v.5M5 13.5L2.5 11 5 8.5M2.7 11H10.5a3 3 0 0 0 3-3v-.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div id="sidebar-replace-row" hidden>
+              <input type="text" id="sidebar-replace-input" data-i18n-placeholder="sidebar.replace.placeholder" placeholder="Sostituisci con…" />
+              <button type="button" id="sidebar-replace-all-btn" data-i18n="sidebar.replace.all">Sostituisci tutto</button>
+            </div>
             <div id="sidebar-search-results"></div>
+          </div>
+          <div id="sidebar-favorites-section" hidden>
+            <div id="sidebar-favorites-header"><span data-i18n="sidebar.favorites">PREFERITI</span></div>
+            <div id="sidebar-favorites-list"></div>
           </div>
           <div id="file-tree"></div>
         </aside>
@@ -148,6 +199,12 @@
                 <button type="button" class="fmt-btn" data-format="table" title="Tabella">
                   <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="13" height="11" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6.5h13M1.5 10.5h13M6 2.5v11M10.5 2.5v11" stroke="currentColor" stroke-width="0.9"/></svg>
                 </button>
+                <button type="button" class="fmt-btn" data-format="tableAddRow" data-i18n-title="editor.tableAddRow" title="Aggiungi riga alla tabella">
+                  <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="13" height="7" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6h13M6 2.5v7M10.5 2.5v7" stroke="currentColor" stroke-width="0.9"/><path d="M8 11v3.5M6.3 12.75h3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" class="fmt-btn" data-format="tableAddColumn" data-i18n-title="editor.tableAddColumn" title="Aggiungi colonna alla tabella">
+                  <svg viewBox="0 0 16 16" class="icon"><rect x="1.5" y="2.5" width="7" height="11" rx="1" fill="none" stroke="currentColor"/><path d="M1.5 6.5h7M1.5 10.5h7" stroke="currentColor" stroke-width="0.9"/><path d="M12 4.75v6.5M8.75 8h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
                 <button type="button" class="fmt-btn" data-format="hr" title="Linea orizzontale">―</button>
               </div>
               <div id="editor-pane"></div>
@@ -160,10 +217,42 @@
           </div>
           </main>
         </div>
+        <div id="split-resizer" hidden></div>
+        <div id="content-column-secondary" hidden>
+          <div id="split-header">
+            <select id="split-tab-select"></select>
+            <button type="button" id="split-diff-toggle" class="icon-btn" data-i18n-title="split.diffToggle" aria-label="Toggle diff">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M5 2v9a2 2 0 0 0 2 2h4M5 2L2.5 4.5M5 2l2.5 2.5M11 14V5a2 2 0 0 0-2-2H5M11 14l2.5-2.5M11 14l-2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" id="split-close-btn" class="icon-btn" data-i18n-title="split.close" aria-label="Close split view">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <main id="content-secondary">
+            <article id="markdown-preview-secondary" class="markdown-body"></article>
+            <div id="diff-view" hidden></div>
+          </main>
+        </div>
         <aside id="outline-panel" hidden>
           <div id="outline-header"><span data-i18n="outline.title">INDICE</span></div>
           <div id="outline-list"></div>
         </aside>
+        <aside id="git-panel" hidden>
+          <div id="git-header">
+            <span id="git-branch"></span>
+            <button type="button" id="git-refresh-btn" class="icon-btn" data-i18n-title="git.refresh" aria-label="Refresh">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3.5H10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div id="git-list"></div>
+        </aside>
+        <aside id="backlinks-panel" hidden>
+          <div id="backlinks-header"><span data-i18n="backlinks.title">BACKLINK</span></div>
+          <div id="backlinks-list"></div>
+        </aside>
+        </div>
+        <div id="body-bottom-resizer" hidden></div>
+        <div id="body-bottom" hidden></div>
       </div>
 
       <footer id="statusbar">
@@ -188,6 +277,30 @@
           </div>
         </div>
       </footer>
+
+      <div id="tree-context-menu" class="context-menu" hidden></div>
+
+      <div id="command-palette-overlay" hidden>
+        <div id="command-palette" role="dialog" aria-modal="true">
+          <input type="text" id="command-palette-input" data-i18n-placeholder="palette.placeholder" placeholder="Digita un comando…" />
+          <div id="command-palette-list"></div>
+        </div>
+      </div>
+
+      <div id="history-overlay" hidden>
+        <div id="history-panel" role="dialog" aria-modal="true">
+          <div class="settings-header">
+            <h2 data-i18n="history.title">Cronologia modifiche</h2>
+            <button type="button" id="history-close-btn" class="icon-btn" aria-label="Close">
+              <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div id="history-list"></div>
+          <div id="history-footer">
+            <button type="button" id="history-clear-btn" data-i18n="history.clear">Cancella cronologia</button>
+          </div>
+        </div>
+      </div>
 
       <div id="settings-overlay" hidden>
         <div id="settings-panel" role="dialog" aria-modal="true">
@@ -221,6 +334,16 @@
                 <option value="large" data-i18n="settings.fontSize.large">Grande</option>
               </select>
             </label>
+            <label class="settings-row">
+              <span data-i18n="settings.codeScheme">Combinazione colori codice</span>
+              <select id="setting-code-scheme">
+                <option value="default" data-i18n="settings.codeScheme.default">Predefinita</option>
+                <option value="vivid" data-i18n="settings.codeScheme.vivid">Contrasto vivace</option>
+                <option value="ocean" data-i18n="settings.codeScheme.ocean">Oceano</option>
+                <option value="forest" data-i18n="settings.codeScheme.forest">Foresta</option>
+                <option value="monochrome" data-i18n="settings.codeScheme.monochrome">Monocromo</option>
+              </select>
+            </label>
             <label class="settings-row settings-row-check">
               <span data-i18n="settings.lineNumbers">Numeri di riga nel codice</span>
               <input type="checkbox" id="setting-line-numbers" />
@@ -237,6 +360,11 @@
               <span data-i18n="settings.showHidden">Mostra cartelle nascoste (.git, node_modules, …)</span>
               <input type="checkbox" id="setting-show-hidden" />
             </label>
+            <div class="settings-section-header">
+              <span data-i18n="settings.shortcuts">Scorciatoie da tastiera</span>
+              <button type="button" id="setting-shortcuts-reset" data-i18n="settings.shortcuts.reset">Ripristina predefinite</button>
+            </div>
+            <div id="settings-shortcuts-list"></div>
           </div>
           <div id="settings-version"></div>
         </div>

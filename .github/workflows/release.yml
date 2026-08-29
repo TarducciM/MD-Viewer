@@ -10,7 +10,29 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
   publish:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -54,10 +76,23 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'MD Viewer ${{ github.ref_name }}'
           args: ${{ matrix.args }}
-          # draft so nothing goes live until reviewed and published by hand
+          # draft while assets are still being uploaded across platforms; the notes job
+          # un-drafts it automatically once everything (including verify) has succeeded
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: true
+
+      # The installer/MSI need setup; this is the raw build, drop it anywhere and run it.
+      # Not wired into the updater (that flow targets the installed/bundled formats).
+      - if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          portable="MD Viewer_${version}_x64-portable.exe"
+          cp "src-tauri/target/release/tauri-app.exe" "$portable"
+          gh release upload "${{ github.ref_name }}" "$portable" --repo "${{ github.repository }}" --clobber
 
   notes:
     needs: publish
@@ -71,19 +106,32 @@ jobs:
           gh api "repos/${{ github.repository }}/releases/generate-notes" \
             -f tag_name="${{ github.ref_name }}" --jq .body > notes.md
 
-          cat > downloads.md <<'EOF'
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+
+          cat > downloads.md <<EOF
           ### Downloads
 
           | Platform | File |
           | --- | --- |
-          | Windows | `*_x64-setup.exe` (installer) or `*_x64_en-US.msi` |
-          | macOS (Apple Silicon) | `*_aarch64.dmg` |
-          | macOS (Intel) | `*_x64.dmg` |
-          | Linux | `*.AppImage`, `*.deb`, or `*.rpm` |
+          | Windows (installer) | [MD.Viewer_${version}_x64-setup.exe]($base/MD.Viewer_${version}_x64-setup.exe) |
+          | Windows (MSI) | [MD.Viewer_${version}_x64_en-US.msi]($base/MD.Viewer_${version}_x64_en-US.msi) |
+          | Windows (portable, no install) | [MD.Viewer_${version}_x64-portable.exe]($base/MD.Viewer_${version}_x64-portable.exe) |
+          | macOS (Apple Silicon) | [MD.Viewer_${version}_aarch64.dmg]($base/MD.Viewer_${version}_aarch64.dmg) |
+          | macOS (Intel) | [MD.Viewer_${version}_x64.dmg]($base/MD.Viewer_${version}_x64.dmg) |
+          | Linux (AppImage) | [MD.Viewer_${version}_amd64.AppImage]($base/MD.Viewer_${version}_amd64.AppImage) |
+          | Linux (.deb) | [MD.Viewer_${version}_amd64.deb]($base/MD.Viewer_${version}_amd64.deb) |
+          | Linux (.rpm) | [MD.Viewer-${version}-1.x86_64.rpm]($base/MD.Viewer-${version}-1.x86_64.rpm) |
           EOF
 
           cat downloads.md notes.md > full-notes.md
           gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --notes-file full-notes.md
+
+      # verify + every platform build succeeded, notes are in place: publish automatically,
+      # no manual "un-draft" step needed.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
 
   cleanup-on-failure:
     needs: publish

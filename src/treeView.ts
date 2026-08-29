@@ -32,6 +32,8 @@ function renderNode(node: TreeNode, depth: number, callbacks: TreeViewCallbacks)
   row.className = "tree-row";
   row.style.paddingLeft = `${8 + depth * 16}px`;
   row.tabIndex = 0;
+  row.dataset.path = node.path;
+  row.dataset.isDir = String(node.isDir);
 
   if (node.isDir) {
     row.classList.add("tree-row-dir");

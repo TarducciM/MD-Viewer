@@ -1,7 +1,7 @@
 {
   "name": "md-viewer",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.4",
   "description": "A desktop Markdown viewer with an IDE-inspired dark/light theme",
   "license": "MIT",
   "author": "Michele Tarducci",
@@ -24,6 +24,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "codemirror": "^6.0.2",
     "docx": "^9.7.1",
