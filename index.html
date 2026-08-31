@@ -120,10 +120,19 @@
         </button>
       </header>
 
-      <div id="update-banner" hidden>
-        <span id="update-banner-text"></span>
-        <button type="button" id="update-banner-action" data-i18n="updater.updateNow">Aggiorna ora</button>
+      <div id="update-banner" class="notice-banner" hidden>
+        <span id="update-banner-text" class="notice-banner-text"></span>
+        <button type="button" id="update-banner-action" class="notice-banner-btn" data-i18n="updater.updateNow">Aggiorna ora</button>
         <button type="button" id="update-banner-dismiss" class="icon-btn" aria-label="Dismiss">
+          <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div id="rating-banner" class="notice-banner" hidden>
+        <span id="rating-banner-text" class="notice-banner-text" data-i18n="rating.prompt">Ti piace MD Viewer? Lascia una stella su GitHub!</span>
+        <button type="button" id="rating-banner-rate" class="notice-banner-btn" data-i18n="rating.rateNow">Vota su GitHub</button>
+        <button type="button" id="rating-banner-later" class="notice-banner-btn-secondary" data-i18n="rating.later">Più tardi</button>
+        <button type="button" id="rating-banner-never" class="icon-btn" data-i18n-title="rating.never" aria-label="Dismiss">
           <svg viewBox="0 0 16 16" class="icon"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
         </button>
       </div>

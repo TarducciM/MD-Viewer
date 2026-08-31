@@ -648,7 +648,8 @@ body.panel-dragging * {
 #app.zen-mode #body-bottom,
 #app.zen-mode #body-bottom-resizer,
 #app.zen-mode #statusbar,
-#app.zen-mode #update-banner {
+#app.zen-mode #update-banner,
+#app.zen-mode #rating-banner {
   display: none !important;
 }
 
@@ -1288,7 +1289,7 @@ body.panel-dragging * {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-#update-banner {
+.notice-banner {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1299,15 +1300,15 @@ body.panel-dragging * {
   flex-shrink: 0;
 }
 
-#update-banner[hidden] {
+.notice-banner[hidden] {
   display: none;
 }
 
-#update-banner-text {
+.notice-banner-text {
   flex: 1;
 }
 
-#update-banner-action {
+.notice-banner-btn {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -1317,20 +1318,34 @@ body.panel-dragging * {
   cursor: pointer;
 }
 
-#update-banner-action:hover {
+.notice-banner-btn:hover {
   background: rgba(255, 255, 255, 0.28);
 }
 
-#update-banner-action[disabled] {
+.notice-banner-btn[disabled] {
   opacity: 0.6;
   cursor: default;
 }
 
-#update-banner-dismiss {
+.notice-banner-btn-secondary {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.notice-banner-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.notice-banner .icon-btn {
   color: #fff;
 }
 
-#update-banner-dismiss:hover {
+.notice-banner .icon-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
@@ -2381,7 +2396,9 @@ body.panel-dragging * {
   #body-bottom-resizer,
   #statusbar,
   #empty-state,
-  #edit-layout {
+  #edit-layout,
+  #update-banner,
+  #rating-banner {
     display: none !important;
   }
 

@@ -42,6 +42,7 @@ import { findBacklinks, type Backlink } from "./backlinks";
 import { diffLines } from "./diff";
 import { searchInFiles, replaceInFiles, flattenFiles, type SearchResult } from "./search";
 import { checkForUpdate, installPendingUpdate } from "./updater";
+import { dismissRatingPromptForever, recordLaunch, shouldShowRatingPrompt, snoozeRatingPrompt } from "./appRating";
 import { fuzzyFilter } from "./fuzzy";
 import { getGitStatus, type GitStatusResult, type GitFileStatusKind } from "./git";
 import { loadShortcuts, matchesCombo, formatCombo } from "./shortcuts";
@@ -140,6 +141,10 @@ const els = {
   updateBannerText: document.querySelector<HTMLSpanElement>("#update-banner-text")!,
   updateBannerAction: document.querySelector<HTMLButtonElement>("#update-banner-action")!,
   updateBannerDismiss: document.querySelector<HTMLButtonElement>("#update-banner-dismiss")!,
+  ratingBanner: document.querySelector<HTMLDivElement>("#rating-banner")!,
+  ratingBannerRate: document.querySelector<HTMLButtonElement>("#rating-banner-rate")!,
+  ratingBannerLater: document.querySelector<HTMLButtonElement>("#rating-banner-later")!,
+  ratingBannerNever: document.querySelector<HTMLButtonElement>("#rating-banner-never")!,
   commandPaletteOverlay: document.querySelector<HTMLDivElement>("#command-palette-overlay")!,
   commandPaletteInput: document.querySelector<HTMLInputElement>("#command-palette-input")!,
   commandPaletteList: document.querySelector<HTMLDivElement>("#command-palette-list")!,
@@ -1471,6 +1476,14 @@ async function runUpdateCheck(manual: boolean): Promise<void> {
   }
 }
 
+// --- App rating prompt -----------------------------------------------------
+
+function maybeShowRatingBanner(): void {
+  if (!els.updateBanner.hidden) return;
+  if (!shouldShowRatingPrompt(Date.now())) return;
+  els.ratingBanner.hidden = false;
+}
+
 // --- Command palette -----------------------------------------------------
 
 interface PaletteCommand {
@@ -1794,6 +1807,20 @@ els.updateBannerAction.addEventListener("click", () => {
   });
 });
 
+els.ratingBannerRate.addEventListener("click", () => {
+  dismissRatingPromptForever(Date.now());
+  els.ratingBanner.hidden = true;
+  void openUrl(REPO_URL);
+});
+els.ratingBannerLater.addEventListener("click", () => {
+  snoozeRatingPrompt(Date.now());
+  els.ratingBanner.hidden = true;
+});
+els.ratingBannerNever.addEventListener("click", () => {
+  dismissRatingPromptForever(Date.now());
+  els.ratingBanner.hidden = true;
+});
+
 window.addEventListener("keydown", (e) => {
   for (const [id, combo] of Object.entries(shortcuts)) {
     if (!combo || !matchesCombo(e, combo)) continue;
@@ -1935,4 +1962,5 @@ els.splitCloseBtn.addEventListener("click", toggleSplitView);
 els.splitDiffToggle.addEventListener("click", () => setDiffMode(!diffModeActive));
 setupDragDrop();
 void restoreLastSession();
-setTimeout(() => void runUpdateCheck(false), UPDATE_CHECK_DELAY_MS);
+recordLaunch(Date.now());
+setTimeout(() => void runUpdateCheck(false).then(() => maybeShowRatingBanner()), UPDATE_CHECK_DELAY_MS);
